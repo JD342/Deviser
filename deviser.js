@@ -1,11 +1,3 @@
-/*
-    
-    Deviser.js 001
-    Copyright (c) 2015 Nicola Fiori
-
-    All rights reserved.
-
-*/
 // TODO finish documentation
 // TODO use 3 spaces for tabs
 /* jshint esnext: true */
