@@ -18,6 +18,10 @@ const dev = {};
 const
     utils = dev.utils = {},
 
+    $constructor = dev.$constructor = Symbol('Deviser Factory Constructor'),
+
+    $prototype = dev.$prototype = Symbol('Deviser Factory Prototype'),
+
     createFactory = dev.createFactory = (() => {
 
         function factory(arg1, arg2) {
@@ -37,11 +41,14 @@ const
             return output;
         }
 
-        return function createFactory(constructor, prototype) {
+        return function createFactory(properties) {
+            const constructor = properties[$constructor];
+            const prototype =
+                createObj(properties[$prototype], props(properties));
             var output = factory.bind(constructor);
             output.constructor = constructor;
             defineProp(
-                output.prototype = constructor.prototype = prototype || {},
+                output.prototype = constructor.prototype = prototype,
                 'constructor',
                 prop(constructor, 1)
             );
@@ -179,7 +186,7 @@ const
     //
     props = utils.props = (props, notEnum, notWrit, notConf) => {
         var output = {};
-        for (var key in props)
+        for (var key of Reflect.ownKeys(props))
             output[key] = prop(props[key], notEnum, notWrit, notConf);
         return output;
     },
@@ -369,146 +376,136 @@ const
 const
     // root factories
     //
-    root = dev.root = createFactory(
+    root = dev.root = createFactory({
 
-        function DeviserRoot() { },
+        [$prototype]: Obj.prototype,
 
-        createObj(Obj.prototype, props({
+        [$constructor]: function DeviserRoot() { },
 
-            applyBehaviour(behaviour) {
-                behaviour.call(this);
-                return this;
-            },
+        applyBehaviour(behaviour) {
+            behaviour.call(this);
+            return this;
+        },
 
-            setProperties(properties) {
-                defineProps(this, getProps(properties));
-                return this;
-            },
+        setProperties(properties) {
+            defineProps(this, getProps(properties));
+            return this;
+        },
 
-            applyProperties(properties) {
-                for (var key in properties) {
-                    console.log(key);
-                    this[key](properties[key]);
-                }
-                return this;
+        applyProperties(properties) {
+            for (var key in properties) {
+                console.log(key);
+                this[key](properties[key]);
             }
+            return this;
+        }
 
-        }))
-
-    ),
+    }),
 
     // collection           factories
     // inherits from root   factories
     //
-    collection = dev.collection = (function () {
+    collection = dev.collection = createFactory({
 
-        var collection = createFactory(
+        [$prototype]: root.prototype,
 
-            function DeviserCollection(items) {
-                root.constructor.call(this);
-                if (items) this.add(...items);
-            },
+        [$constructor]: function DeviserCollection(items) {
+            root.constructor.call(this);
+            if (items) this.add(...items);
+        },
 
-            createObj(root.prototype, props({
+        // TODO make length a method
+        length: 0,
 
-                // TODO make length a method
-                length: 0,
+        indexOf(item) {
+            var ind = this.length;
+            while (ind--) if (item === this[ind]) break;
+            return ind;
+        },
 
-                indexOf(item) {
-                    var ind = this.length;
-                    while (ind--) if (item === this[ind]) break;
-                    return ind;
-                },
+        remove(item) {
+            var self = this,
+                index = self.indexOf(item);
+            if (index >= 0) {
+                var ind = index,
+                    max = self.length;
+                while (ind < max) self[ind++] = self[ind];
+                delete self[--self.length];
+            }
+            return self;
+        },
 
-                remove(item) {
-                    var self = this,
-                        index = self.indexOf(item);
-                    if (index >= 0) {
-                        var ind = index,
-                            max = self.length;
-                        while (ind < max) self[ind++] = self[ind];
-                        delete self[--self.length];
-                    }
-                    return self;
-                },
+        insert(item, index) {
+            var self = this,
+                ind = self.length;
+            self.remove(item);
+            while (ind > index) self[ind] = self[--ind];
+            self[ind] = item;
+            self.length++;
+            return self;
+        },
 
-                insert(item, index) {
-                    var self = this,
-                        ind = self.length;
-                    self.remove(item);
-                    while (ind > index) self[ind] = self[--ind];
-                    self[ind] = item;
-                    self.length++;
-                    return self;
-                },
+        prepend(item) {
+            return this.insert(item, 0);
+        },
 
-                prepend(item) {
-                    return this.insert(item, 0);
-                },
+        append(item) {
+            return this.insert(item, this.length);
+        },
 
-                append(item) {
-                    return this.insert(item, this.length);
-                },
+        insertBefore(item1, item2) {
+            var self = this,
+                index = self.indexOf(item2);
+            if (index >= 0) self.insert(item1, index);
+            return self;
+        },
 
-                insertBefore(item1, item2) {
-                    var self = this,
-                        index = self.indexOf(item2);
-                    if (index >= 0) self.insert(item1, index);
-                    return self;
-                },
+        insertAfter(item1, item2) {
+            var self = this,
+                index = self.indexOf(item2);
+            if (index++ >= 0) self.insert(item1, index);
+            return self;
+        },
 
-                insertAfter(item1, item2) {
-                    var self = this,
-                        index = self.indexOf(item2);
-                    if (index++ >= 0) self.insert(item1, index);
-                    return self;
-                },
+        clear() {
+            var ind = this.length;
+            while (ind--) this.remove(this[ind]);
+            return this;
+        },
 
-                clear() {
-                    var ind = this.length;
-                    while (ind--) this.remove(this[ind]);
-                    return this;
-                },
+        forEach(callback) {
+            var self = this,
+                ind = 0,
+                max = self.length;
+            while (ind < max) callback(self[ind], ind++, self);
+            return self;
+        },
 
-                forEach(callback) {
-                    var self = this,
-                        ind = 0,
-                        max = self.length;
-                    while (ind < max) callback(self[ind], ind++, self);
-                    return self;
-                },
+        some(callback) {
+            for (var ind = 0; ind < this.length; ind++)
+                if (callback(this[ind], ind)) return true;
+            return false;
+        },
 
-                some(callback) {
-                    for (var ind = 0; ind < this.length; ind++)
-                        if (callback(this[ind], ind)) return true;
-                    return false;
-                },
+        every(callback) {
+            for (var ind = 0; ind < this.length; ind++)
+                if (!callback(this[ind], ind)) return false;
+            return true;
+        },
 
-                every(callback) {
-                    for (var ind = 0; ind < this.length; ind++)
-                        if (!callback(this[ind], ind)) return false;
-                    return true;
-                },
+        add() {
+            var ind = 0,
+                args = arguments,
+                max = args.length;
+            while (ind < max) this.append(args[ind++]);
+            return this;
+        },
 
-                add() {
-                    var ind = 0,
-                        args = arguments,
-                        max = args.length;
-                    while (ind < max) this.append(args[ind++]);
-                    return this;
-                },
+        has(item) {
+            return this.indexOf(item) >= 0;
+        },
 
-                has(item) {
-                    return this.indexOf(item) >= 0;
-                }
-
-            }))
-
-        );
-
-        // TODO do it using computed property keys when chrome will support
-        // them
-        collection.prototype[Symbol.iterator] = function () {
+        [Symbol.iterator]() {
             var ind = 0;
             return {
                 next: (function () {
@@ -522,16 +519,14 @@ const
                     );
                 }).bind(this)
             };
-        };
+        }
 
-        return collection;
-
-    })(),
+    }),
 
     // color                factories
     // inherits from root   factories
     //
-    color = dev.color = (function () {
+    color = dev.color = (() => {
 
         function setString(self, type, string) {
             for (var key in colorTypes) colorTypes[key].map.delete(self);
@@ -634,9 +629,11 @@ const
             hslValsMap = weakmap(),
             alphaMap = weakmap();
 
-        return createFactory(
+        return createFactory({
 
-            function DeviserColor(color) {
+            [$prototype]: root.prototype,
+
+            [$constructor]: function DeviserColor(color) {
                 root.constructor.call(this);
                 if (color)
                     if (typeof color === 'string') {
@@ -652,406 +649,389 @@ const
                         // TODO else throw error
             },
 
-            createObj(root.prototype, props({
-
-                rgbVals(newRgbVals) {
-                    var key;
-                    if (newRgbVals) {
-                        for (key in colorTypes)
-                            colorTypes[key].map.delete(this);
-                        hslValsMap.delete(this);
-                        rgbValsMap.set(
-                            this,
-                            freeze(newRgbVals.slice(0, 3))
-                        );
-                        return this;
-                    }
-                    if (rgbValsMap.has(this)) return rgbValsMap.get(this);
-                    var outputVals;
-                    if (hslValsMap.has(this))
-                        outputVals = hslToRgb(hslValsMap.get(this));
-                    else {
-                        var colorType, match, map;
-                        for (key in colorTypes) {
-                            colorType = colorTypes[key];
-                            map = colorType.map;
-                            if (map.has(this)) {
-                                match = (
-                                    map.get(this).match(colorType.regex)
-                                );
-                                switch (key) {
-                                    case 'rgba':
-                                        alphaMap.set(this, match[4]);
-                                    case 'rgb':
-                                        outputVals = [
-                                            match[1] / 255,
-                                            match[2] / 255,
-                                            match[3] / 255
-                                        ];
-                                        break;
-                                    case 'hex':
-                                        outputVals = hexToRgb(match);
-                                        break;
-                                    case 'hsla':
-                                        alphaMap.set(this, match[4]);
-                                    case 'hsl':
-                                        var arr = freeze([
-                                            match[1] / 360,
-                                            match[2] / 100,
-                                            match[3] / 100
-                                        ]);
-                                        map.set(this, arr);
-                                        outputVals = hslToRgb(arr);
-                                }
-                            }
-                        }
-                    }
-                    if (!outputVals) outputVals = [0, 0, 0];
-                    freeze(outputVals);
-                    rgbValsMap.set(this, outputVals);
-                    return outputVals;
-                },
-
-                hslVals(newHslVals) {
-                    var key;
-                    if (newHslVals) {
-                        for (key in colorTypes)
-                            colorTypes[key].map.delete(this);
-                        rgbValsMap.delete(this);
-                        hslValsMap.set(
-                            this,
-                            freeze(newHslVals.slice(0, 3))
-                        );
-                        return this;
-                    }
-                    if (hslValsMap.has(this)) return hslValsMap.get(this);
-                    var outputVals;
-                    if (rgbValsMap.has(this))
-                        outputVals = rgbToHsl(rgbValsMap.get(this));
-                    else {
-                        var colorType, match, map, arr;
-                        for (key in colorTypes) {
-                            colorType = colorTypes[key];
-                            map = colorType.map;
-                            if (map.has(this)) {
-                                match = (
-                                    map.get(this).match(colorType.regex)
-                                );
-                                switch (key) {
-                                    case 'hsla':
-                                        alphaMap.set(this, match[4]);
-                                    case 'hsl':
-                                        outputVals = [
-                                            match[1] / 360,
-                                            match[2] / 100,
-                                            match[3] / 100
-                                        ];
-                                        break;
-                                    case 'rgba':
-                                        alphaMap.set(this, match[4]);
-                                    case 'rgb':
-                                        arr = freeze([
-                                            match[1] / 255,
-                                            match[2] / 255,
-                                            match[3] / 255
-                                        ]);
-                                        break;
-                                    case 'hex':
-                                        arr = freeze(hexToRgb(match));
-                                    case 'rgb':
-                                    case 'rgba':
-                                        rgbValsMap.set(this, arr);
-                                        outputVals = rgbToHsl(arr);
-                                }
-                            }
-                        }
-                    }
-                    if (!outputVals) outputVals = [0, 0, 0];
-                    freeze(outputVals);
-                    hslValsMap.set(this, outputVals);
-                    return outputVals;
-                },
-
-                a: (() => {
-                    var types = ['rgba', 'hsla'];
-                    return function a(newAlpha) {
-                        if (newAlpha !== undefined) {
-                            if (newAlpha !== alphaMap.get(this)) {
-                                colorTypes.rgba.map.delete(this);
-                                colorTypes.hsla.map.delete(this);
-                                alphaMap.set(this, newAlpha);
-                            }
-                            return this;
-                        }
-                        if (alphaMap.has(this)) return alphaMap.get(this);
-                        var colorType, map;
-                        for (var key of types) {
-                            colorType = colorTypes[key];
-                            map = colorType.map;
-                            if (map.has(this)) {
-                                var alpha = map.get(this).match(
-                                    colorType.regex
-                                );
-                                alphaMap.set(this, alpha);
-                                return alpha;
-                            }
-                        }
-                        return 1;
-                    };
-                })(),
-
-                r(newRed) {
-                    var vals = this.rgbVals(),
-                        red = vals[0];
-                    if (newRed !== undefined) {
-                        if (newRed !== red)
-                            this.rgbVals([newRed, vals[1], vals[2]]);
-                        return this;
-                    }
-                    return red;
-                },
-
-                g(newGreen) {
-                    if (newGreen !== undefined) {
-                        var vals = this.rgbVals();
-                        return this.rgbVals([vals[0], newGreen, vals[2]]);
-                    }
-                    return this.rgbVals()[1];
-                },
-
-                b(newBlue) {
-                    if (newBlue !== undefined) {
-                        var vals = this.rgbVals();
-                        return this.rgbVals([vals[0], vals[1], newBlue]);
-                    }
-                    return this.rgbVals()[2];
-                },
-
-                h(newHue) {
-                    if (newHue !== undefined) {
-                        var vals = this.hslVals();
-                        return this.hslVals([newHue, vals[1], vals[2]]);
-                    }
-                    return this.hslVals()[0];
-                },
-
-                s(newSaturation) {
-                    if (newSaturation !== undefined) {
-                        var vals = this.hslVals();
-                        return this.hslVals([
-                            vals[0],
-                            newSaturation,
-                            vals[2]
-                        ]);
-                    }
-                    return this.hslVals()[0];
-                },
-
-                l(newLightness) {
-                    if (newLightness !== undefined) {
-                        var vals = this.hslVals();
-                        return this.hslVals([
-                            vals[0],
-                            vals[1],
-                            newLightness
-                        ]);
-                    }
-                    return this.hslVals()[2];
-                },
-
-                hex(newHex) {
-                    if (newHex) {
-                        // TODO throw error if the string doesn't match
-                        setString(this, 'hex', newHex);
-                        return this;
-                    }
-                    var string = colorTypes.hex.map.get(this);
-                    if (string) return string;
-                    var hex = '#',
-                        rgbVals = this.rgbVals(),
-                        hexVals = [],
-                        hexVal,
-                        numOfCollapsableVals = 0,
-                        ind = 3;
-                    while (ind--) {
-                        hexVal = round(rgbVals[ind] * 255).toString(16);
-                        if (hexVal.length === 1) hexVal = 0 + hexVal;
-                        if (hexVal[0] === hexVal[1]) numOfCollapsableVals++;
-                        hexVals[ind] = hexVal;
-                    }
-                    if (numOfCollapsableVals !== 3) hex += hexVals.join('');
-                    else while (++ind < 3) hex += hexVals[ind][0];
-                    colorTypes.hex.map.set(this, hex);
-                    return hex;
-                },
-
-                rgb(newRgb) {
-                    if (newRgb) {
-                        // TODO throw error if the string doesn't match
-                        setString(this, 'rgb', newRgb);
-                        return this;
-                    }
-                    var string = colorTypes.rgb.map.get(this);
-                    if (string) return string;
-                    for (
-                        var ind = 3,
-                            inputVals = this.rgbVals(),
-                            outputVals = [];
-                        ind--;
-                    ) outputVals[ind] = round(inputVals[ind] * 255);
-                    string = 'rgb(' + outputVals + ')';
-                    colorTypes.rgb.map.set(this, string);
-                    return string;
-                },
-
-                hsl(newHsl) {
-                    if (newHsl) {
-                        // TODO throw error if the string doesm't match
-                        setString(this, 'hsl', newHsl);
-                        return this;
-                    }
-                    var string = colorTypes.hsl.map.get(this);
-                    if (string) return string;
-                    var inputVals = this.hslVals();
-                    string = (
-                        'hsl(' +
-                        [
-                            inputVals[0] * 360,
-                            inputVals[1] * 100 + '%',
-                            inputVals[2] * 100 + '%'
-                        ] +
-                        ')'
-                    );
-                    colorTypes.hsl.map.set(this, string);
-                    return string;
-                },
-
-                rgba(newRgba) {
-                    if (newRgba) {
-                        // TODO throw error if the string doesm't match
-                        alphaMap.delete(this);
-                        setString(this, 'rgba', newRgba);
-                        return this;
-                    }
-                    var string = colorTypes.rgba.map.get(this);
-                    if (string) return string;
-                    for (
-                        var ind = 3,
-                            inputVals = this.rgbVals(),
-                            outputVals = [];
-                        ind--;
-                    ) outputVals[ind] = round(inputVals[ind] * 255);
-                    string = 'rgba(' + [outputVals, this.a()] + ')';
-                    colorTypes.rgba.map.set(this, string);
-                    return string;
-                },
-
-                hsla(newHsla) {
-                    if (newHsla) {
-                        // TODO throw error if the string doesm't match
-                        alphaMap.delete(this);
-                        setString(this, 'hsla', newHsla);
-                        return this;
-                    }
-                    var string = colorTypes.rgba.map.get(this);
-                    if (string) return string;
-                    var inputVals = this.hslVals();
-                    string = (
-                        'hsla(' +
-                        [
-                            inputVals[0] * 360,
-                            inputVals[1] * 100 + '%',
-                            inputVals[2] * 100 + '%',
-                            this.a()
-                        ] +
-                        ')'
-                    );
-                    colorTypes.hsla.map.set(this, string);
-                    return string;
-                },
-
-                toString() {
-                    var map;
-                    for (var key in colorTypes) {
-                        map = colorTypes[key].map;
-                        if (map.has(this)) return map.get(this);
-                    }
-                    return this.rgba();
-                },
-
-                clone() {
-                    return color(this);
+            rgbVals(newRgbVals) {
+                var key;
+                if (newRgbVals) {
+                    for (key in colorTypes) colorTypes[key].map.delete(this);
+                    hslValsMap.delete(this);
+                    rgbValsMap.set(this, freeze(newRgbVals.slice(0, 3)));
+                    return this;
                 }
+                if (rgbValsMap.has(this)) return rgbValsMap.get(this);
+                var outputVals;
+                if (hslValsMap.has(this))
+                    outputVals = hslToRgb(hslValsMap.get(this));
+                else {
+                    var colorType, match, map;
+                    for (key in colorTypes) {
+                        colorType = colorTypes[key];
+                        map = colorType.map;
+                        if (map.has(this)) {
+                            match = map.get(this).match(colorType.regex);
+                            switch (key) {
+                                case 'rgba':
+                                    alphaMap.set(this, match[4]);
+                                case 'rgb':
+                                    outputVals = [
+                                        match[1] / 255,
+                                        match[2] / 255,
+                                        match[3] / 255
+                                    ];
+                                    break;
+                                case 'hex':
+                                    outputVals = hexToRgb(match);
+                                    break;
+                                case 'hsla':
+                                    alphaMap.set(this, match[4]);
+                                case 'hsl':
+                                    var arr = freeze([
+                                        match[1] / 360,
+                                        match[2] / 100,
+                                        match[3] / 100
+                                    ]);
+                                    map.set(this, arr);
+                                    outputVals = hslToRgb(arr);
+                            }
+                        }
+                    }
+                }
+                if (!outputVals) outputVals = [0, 0, 0];
+                freeze(outputVals);
+                rgbValsMap.set(this, outputVals);
+                return outputVals;
+            },
 
-            }))
+            hslVals(newHslVals) {
+                var key;
+                if (newHslVals) {
+                    for (key in colorTypes) colorTypes[key].map.delete(this);
+                    rgbValsMap.delete(this);
+                    hslValsMap.set(this, freeze(newHslVals.slice(0, 3)));
+                    return this;
+                }
+                if (hslValsMap.has(this)) return hslValsMap.get(this);
+                var outputVals;
+                if (rgbValsMap.has(this))
+                    outputVals = rgbToHsl(rgbValsMap.get(this));
+                else {
+                    var colorType, match, map, arr;
+                    for (key in colorTypes) {
+                        colorType = colorTypes[key];
+                        map = colorType.map;
+                        if (map.has(this)) {
+                            match = map.get(this).match(colorType.regex);
+                            switch (key) {
+                                case 'hsla':
+                                    alphaMap.set(this, match[4]);
+                                case 'hsl':
+                                    outputVals = [
+                                        match[1] / 360,
+                                        match[2] / 100,
+                                        match[3] / 100
+                                    ];
+                                    break;
+                                case 'rgba':
+                                    alphaMap.set(this, match[4]);
+                                case 'rgb':
+                                    arr = freeze([
+                                        match[1] / 255,
+                                        match[2] / 255,
+                                        match[3] / 255
+                                    ]);
+                                    break;
+                                case 'hex':
+                                    arr = freeze(hexToRgb(match));
+                                case 'rgb':
+                                case 'rgba':
+                                    rgbValsMap.set(this, arr);
+                                    outputVals = rgbToHsl(arr);
+                            }
+                        }
+                    }
+                }
+                if (!outputVals) outputVals = [0, 0, 0];
+                freeze(outputVals);
+                hslValsMap.set(this, outputVals);
+                return outputVals;
+            },
 
-        );
+            a: (() => {
+                var types = ['rgba', 'hsla'];
+                return function a(newAlpha) {
+                    if (newAlpha !== undefined) {
+                        if (newAlpha !== alphaMap.get(this)) {
+                            colorTypes.rgba.map.delete(this);
+                            colorTypes.hsla.map.delete(this);
+                            alphaMap.set(this, newAlpha);
+                        }
+                        return this;
+                    }
+                    if (alphaMap.has(this)) return alphaMap.get(this);
+                    var colorType, map;
+                    for (var key of types) {
+                        colorType = colorTypes[key];
+                        map = colorType.map;
+                        if (map.has(this)) {
+                            var alpha = map.get(this).match(
+                                colorType.regex
+                            );
+                            alphaMap.set(this, alpha);
+                            return alpha;
+                        }
+                    }
+                    return 1;
+                };
+            })(),
+
+            r(newRed) {
+                var vals = this.rgbVals(),
+                    red = vals[0];
+                if (newRed !== undefined) {
+                    if (newRed !== red)
+                        this.rgbVals([newRed, vals[1], vals[2]]);
+                    return this;
+                }
+                return red;
+            },
+
+            g(newGreen) {
+                if (newGreen !== undefined) {
+                    var vals = this.rgbVals();
+                    return this.rgbVals([vals[0], newGreen, vals[2]]);
+                }
+                return this.rgbVals()[1];
+            },
+
+            b(newBlue) {
+                if (newBlue !== undefined) {
+                    var vals = this.rgbVals();
+                    return this.rgbVals([vals[0], vals[1], newBlue]);
+                }
+                return this.rgbVals()[2];
+            },
+
+            h(newHue) {
+                if (newHue !== undefined) {
+                    var vals = this.hslVals();
+                    return this.hslVals([newHue, vals[1], vals[2]]);
+                }
+                return this.hslVals()[0];
+            },
+
+            s(newSaturation) {
+                if (newSaturation !== undefined) {
+                    var vals = this.hslVals();
+                    return this.hslVals([
+                        vals[0],
+                        newSaturation,
+                        vals[2]
+                    ]);
+                }
+                return this.hslVals()[0];
+            },
+
+            l(newLightness) {
+                if (newLightness !== undefined) {
+                    var vals = this.hslVals();
+                    return this.hslVals([
+                        vals[0],
+                        vals[1],
+                        newLightness
+                    ]);
+                }
+                return this.hslVals()[2];
+            },
+
+            hex(newHex) {
+                if (newHex) {
+                    // TODO throw error if the string doesn't match
+                    setString(this, 'hex', newHex);
+                    return this;
+                }
+                var string = colorTypes.hex.map.get(this);
+                if (string) return string;
+                var hex = '#',
+                    rgbVals = this.rgbVals(),
+                    hexVals = [],
+                    hexVal,
+                    numOfCollapsableVals = 0,
+                    ind = 3;
+                while (ind--) {
+                    hexVal = round(rgbVals[ind] * 255).toString(16);
+                    if (hexVal.length === 1) hexVal = 0 + hexVal;
+                    if (hexVal[0] === hexVal[1]) numOfCollapsableVals++;
+                    hexVals[ind] = hexVal;
+                }
+                if (numOfCollapsableVals !== 3) hex += hexVals.join('');
+                else while (++ind < 3) hex += hexVals[ind][0];
+                colorTypes.hex.map.set(this, hex);
+                return hex;
+            },
+
+            rgb(newRgb) {
+                if (newRgb) {
+                    // TODO throw error if the string doesn't match
+                    setString(this, 'rgb', newRgb);
+                    return this;
+                }
+                var string = colorTypes.rgb.map.get(this);
+                if (string) return string;
+                for (
+                    var ind = 3,
+                        inputVals = this.rgbVals(),
+                        outputVals = [];
+                    ind--;
+                ) outputVals[ind] = round(inputVals[ind] * 255);
+                string = 'rgb(' + outputVals + ')';
+                colorTypes.rgb.map.set(this, string);
+                return string;
+            },
+
+            hsl(newHsl) {
+                if (newHsl) {
+                    // TODO throw error if the string doesm't match
+                    setString(this, 'hsl', newHsl);
+                    return this;
+                }
+                var string = colorTypes.hsl.map.get(this);
+                if (string) return string;
+                var inputVals = this.hslVals();
+                string = (
+                    'hsl(' +
+                    [
+                        inputVals[0] * 360,
+                        inputVals[1] * 100 + '%',
+                        inputVals[2] * 100 + '%'
+                    ] +
+                    ')'
+                );
+                colorTypes.hsl.map.set(this, string);
+                return string;
+            },
+
+            rgba(newRgba) {
+                if (newRgba) {
+                    // TODO throw error if the string doesm't match
+                    alphaMap.delete(this);
+                    setString(this, 'rgba', newRgba);
+                    return this;
+                }
+                var string = colorTypes.rgba.map.get(this);
+                if (string) return string;
+                for (
+                    var ind = 3,
+                        inputVals = this.rgbVals(),
+                        outputVals = [];
+                    ind--;
+                ) outputVals[ind] = round(inputVals[ind] * 255);
+                string = 'rgba(' + [outputVals, this.a()] + ')';
+                colorTypes.rgba.map.set(this, string);
+                return string;
+            },
+
+            hsla(newHsla) {
+                if (newHsla) {
+                    // TODO throw error if the string doesm't match
+                    alphaMap.delete(this);
+                    setString(this, 'hsla', newHsla);
+                    return this;
+                }
+                var string = colorTypes.rgba.map.get(this);
+                if (string) return string;
+                var inputVals = this.hslVals();
+                string = (
+                    'hsla(' +
+                    [
+                        inputVals[0] * 360,
+                        inputVals[1] * 100 + '%',
+                        inputVals[2] * 100 + '%',
+                        this.a()
+                    ] +
+                    ')'
+                );
+                colorTypes.hsla.map.set(this, string);
+                return string;
+            },
+
+            toString() {
+                var map;
+                for (var key in colorTypes) {
+                    map = colorTypes[key].map;
+                    if (map.has(this)) return map.get(this);
+                }
+                return this.rgba();
+            },
+
+            clone() {
+                return color(this);
+            }
+
+        });
 
     })(),
 
     // dynamicObject    factories
     //
     // eslint-disable-next-line no-unused-vars
-    dynamicObject = dev.dynamicObject = (function () {
+    dynamicObject = dev.dynamicObject = (() => {
 
         var listenersMap = weakmap();
 
-        return createFactory(
+        return createFactory({
 
-            function DeviserDynamicObject(listeners) {
-                if (listeners) for (var listener of listeners)
-                    this.addListener(listener);
+            [$prototype]: Obj.prototype,
+
+            [$constructor]: function DeviserDynamicObject(listeners) {
+                if (listeners)
+                    for (var listener of listeners) this.addListener(listener);
             },
 
-            createObj(Obj.prototype, props({
+            addListener(listener, prioritize) {
+                var listeners = listenersMap.get(this);
+                if (!listeners)
+                    listeners = listenersMap.set(this, collection());
+                listeners[prioritize ? 'append' : 'prepend'](listener);
+                return this;
+            },
 
-                addListener(listener, prioritize) {
-                    var listeners = listenersMap.get(this);
-                    if (!listeners)
-                        listeners = listenersMap.set(this, collection());
-                    listeners[prioritize ? 'append' : 'prepend'](listener);
-                    return this;
-                },
+            removeListener(listener) {
+                listenersMap.get(this).remove(listener);
+                return this;
+            },
 
-                removeListener(listener) {
-                    listenersMap.get(this).remove(listener);
-                    return this;
-                },
-
-                dispatchChange(change) {
-                    var listeners = listenersMap.get(this);
-                    if (listeners) for (var listener of listeners)
+            dispatchChange(change) {
+                var listeners = listenersMap.get(this);
+                if (listeners)
+                    for (var listener of listeners)
                         if (listener.call(this, change) === false) break;
-                    return this;
-                }
+                return this;
+            }
 
-            }))
-
-        );
+        });
 
     })(),
 
     // dynamicValue
     // inherits from root
     //
-    dynamicValue = dev.dynamicValue = createFactory(
+    dynamicValue = dev.dynamicValue = createFactory({
 
-        function DeviserDynamicValue(value) {
+        [$prototype]: root.prototype,
+
+        [$constructor]: function DeviserDynamicValue(value) {
             root.constructor.call(this);
             if (value !== undefined) this.value(value);
         },
 
-        createObj(root.prototype, props({
-            value: dynamicProperty()
-        }))
+        value: dynamicProperty()
 
-    ),
+    }),
 
     // animatedNumber
     // inherits from dynamicValue
     //
     // eslint-disable-next-line no-unused-vars
-    animatedNumber = dev.animatedNumber = (function () {
+    animatedNumber = dev.animatedNumber = (() => {
 
         var animationMap = weakmap(),
             targetMap = weakmap();
@@ -1076,42 +1056,40 @@ const
             this.value(nextValue);
         }
 
-        return createFactory(
+        return createFactory({
 
-            function DeviserAnimatedNumber(number) {
+            [$prototype]: dynamicValue.prototype,
+
+            [$constructor]: function DeviserAnimatedNumber(number) {
                 dynamicValue.constructor.call(this, number || 0);
                 this.target(number || 0);
             },
 
-            createObj(dynamicValue.prototype, props({
+            delta: property(1),
+            value: dynamicProperty(0),
 
-                delta: property(1),
-                value: dynamicProperty(0),
-
-                target(newTarget) {
-                    var target = targetMap.get(this);
-                    if (newTarget !== undefined) {
-                        if (newTarget !== target) {
-                            if (!animationMap.get(this)) animationMap.set(
-                                this,
-                                animationFrameLoop()
-                                    .update(updateListener.bind(this))
-                                    .start()
-                            );
-                            targetMap.set(this, newTarget);
-                        }
-                        return this;
+            target(newTarget) {
+                var target = targetMap.get(this);
+                if (newTarget !== undefined) {
+                    if (newTarget !== target) {
+                        if (!animationMap.get(this)) animationMap.set(
+                            this,
+                            animationFrameLoop()
+                                .update(updateListener.bind(this))
+                                .start()
+                        );
+                        targetMap.set(this, newTarget);
                     }
-                    return target;
-                },
-
-                jumpTo(number) {
-                    return this.target(number).value(number);
+                    return this;
                 }
+                return target;
+            },
 
-            }))
+            jumpTo(number) {
+                return this.target(number).value(number);
+            }
 
-        );
+        });
 
     })(),
 
@@ -1122,33 +1100,31 @@ const
 
         var runningMap = weakmap();
 
-        return createFactory(
+        return createFactory({
 
-            function DeviserRunnable() {
+            [$prototype]: root.prototype,
+
+            [$constructor]: function DeviserRunnable() {
                 root.constructor.call(this);
             },
 
-            createObj(root.prototype, props({
+            // TODO fix start bug
+            start: dynamicMethod(function () {
+                if (!runningMap.get(this)) runningMap.set(this, true);
+                else return false;
+            }),
 
-                // TODO fix start bug
-                start: dynamicMethod(function () {
-                    if (!runningMap.get(this)) runningMap.set(this, true);
-                    else return false;
-                }),
+            stop: dynamicMethod(function () {
+                if (runningMap.get(this)) runningMap.set(this, false);
+                else return false;
+            }),
 
-                stop: dynamicMethod(function () {
-                    if (runningMap.get(this)) runningMap.set(this, false);
-                    else return false;
-                }),
+            running(/* newRunning */) {
+                // TODO if newRunning exist throw error
+                return runningMap.get(this);
+            }
 
-                running(/* newRunning */) {
-                    // TODO if newRunning exist throw error
-                    return runningMap.get(this);
-                }
-
-            }))
-
-        );
+        });
 
     })(),
 
@@ -1168,30 +1144,28 @@ const
             }
         }
 
-        return createFactory(
+        return createFactory({
 
-            function DeviserAnimationFrameLoop() {
+            [$prototype]: runnable.prototype,
+
+            [$constructor]: function DeviserAnimationFrameLoop() {
                 runnable.constructor.call(this);
             },
 
-            createObj(runnable.prototype, props({
+            start: dynamicMethod(function () {
+                if (
+                    runnable.prototype.start.executor.call(this) !==
+                    false
+                ) {
+                    lastTimeMap.set(this, getTime());
+                    requestAnimationFrame(loop.bind(this));
+                }
+                else return false;
+            }),
 
-                start: dynamicMethod(function () {
-                    if (
-                        runnable.prototype.start.executor.call(this) !==
-                        false
-                    ) {
-                        lastTimeMap.set(this, getTime());
-                        requestAnimationFrame(loop.bind(this));
-                    }
-                    else return false;
-                }),
+            update: dynamicMethod()
 
-                update: dynamicMethod()
-
-            }))
-
-        );
+        });
 
     })(),
 
@@ -1204,179 +1178,165 @@ const
             this.stop();
         }
 
-        return createFactory(
+        return createFactory({
 
-            function DeviserLoadingTarget() {
+            [$prototype]: runnable.prototype,
+
+            [$constructor]: function DeviserLoadingTarget() {
                 runnable.constructor.call(this);
             },
 
-            createObj(runnable.prototype, props({
+            resolve: dynamicMethod(stop),
+            reject: dynamicMethod(stop),
+            completion: dynamicProperty(0),
 
-                resolve: dynamicMethod(stop),
-                reject: dynamicMethod(stop),
-                completion: dynamicProperty(0),
+            complete(listener, remove) {
+                // TODO throw error if there is no listener
+                return (
+                    this.resolve(listener, remove)
+                        .reject(listener, remove)
+                );
+            },
 
-                complete(listener, remove) {
-                    // TODO throw error if there is no listener
-                    return (
-                        this.resolve(listener, remove)
-                            .reject(listener, remove)
-                    );
-                },
+            start: dynamicMethod(function () {
+                if (
+                    runnable.prototype.start.executor.call(this) ===
+                    false
+                ) return false;
+                this.completion(0);
+            })
 
-                start: dynamicMethod(function () {
-                    if (
-                        runnable.prototype.start.executor.call(this) ===
-                        false
-                    ) return false;
-                    this.completion(0);
-                })
+        });
 
-            }))
-        );
     })(),
 
     // loadingList
     // inherits from loadingTarget
     //
-    loadingList = dev.loadingList = (() => {
+    loadingList = dev.loadingList = createFactory({
 
-        var loadingList = createFactory(
+        [$prototype]: loadingTarget.prototype,
 
-            function DeviserLoadingList(list) {
-                loadingTarget.call(this);
-                if (list) this.list(list);
-            },
+        [$constructor]: function DeviserLoadingList(list) {
+            loadingTarget.call(this);
+            if (list) this.list(list);
+        },
 
-            createObj(loadingTarget.prototype, props({
+        start: dynamicMethod(function () {
 
-                start: dynamicMethod(function () {
-
-                    if (
-                        loadingTarget.prototype.start.executor.call(
-                            this
-                        ) ===
-                        false
-                    ) return false;
-                    var list = this.list(),
-                        pending = list.length,
-                        delta = 1 / pending,
-                        completeListener = function () {
-                            this.resolve(resolveListener, true)
-                                .reject(rejectListener, true)
-                                .complete(completeListener, true)
-                                .completion(completionListener, true);
-                        },
-                        resolveListener = (function () {
-                            if (!--pending) this.resolve();
-                        }).bind(this),
-                        rejectListener = (function (message) {
-                            this.reject(message);
-                        }).bind(this),
-                        completionListener = (function () {
-                            var completion = 0;
-                            for (var item of list)
-                                completion += item.completion() * delta;
-                            this.completion(completion);
-                        }).bind(this);
-
-                    this.stop(function stop() {
-                        for (var item of list)
-                            completeListener.call(item.stop());
-                        this.stop(stop, true);
-                    });
-
+            if (
+                loadingTarget.prototype.start.executor.call(
+                    this
+                ) ===
+                false
+            ) return false;
+            var list = this.list(),
+                pending = list.length,
+                delta = 1 / pending,
+                completeListener = function () {
+                    this.resolve(resolveListener, true)
+                        .reject(rejectListener, true)
+                        .complete(completeListener, true)
+                        .completion(completionListener, true);
+                },
+                resolveListener = (function () {
+                    if (!--pending) this.resolve();
+                }).bind(this),
+                rejectListener = (function (message) {
+                    this.reject(message);
+                }).bind(this),
+                completionListener = (function () {
+                    var completion = 0;
                     for (var item of list)
-                        item.resolve(resolveListener)
-                            .reject(rejectListener)
-                            .complete(completeListener)
-                            .completion(completionListener);
+                        completion += item.completion() * delta;
+                    this.completion(completion);
+                }).bind(this);
 
-                    completionListener();
+            this.stop(function stop() {
+                for (var item of list)
+                    completeListener.call(item.stop());
+                this.stop(stop, true);
+            });
 
-                }),
+            for (var item of list)
+                item.resolve(resolveListener)
+                    .reject(rejectListener)
+                    .complete(completeListener)
+                    .completion(completionListener);
 
-                list: property()
+            completionListener();
 
-            }))
+        }),
 
-        );
+        list: property(),
 
-        // TODO do it using computed property keys when chrome will support
-        // them
-        loadingList.prototype[Symbol.iterator] = function* () {
+        [Symbol.iterator]: function* () {
             yield* this.list();
-        };
+        }
 
-        return loadingList;
-
-    })(),
+    }),
 
     // simultaneousLoading
     // inherits from loadingList
     //
     // eslint-disable-next-line no-unused-vars
-    simultaneousLoading = dev.simultaneousLoading = createFactory(
+    simultaneousLoading = dev.simultaneousLoading = createFactory({
 
-        function DeviserSimultaneousLoading(list) {
+        [$prototype]: loadingList.prototype,
+
+        [$constructor]: function DeviserSimultaneousLoading(list) {
             loadingList.constructor.call(this, list);
         },
 
-        createObj(loadingList.prototype, props({
+        start: dynamicMethod(function () {
+            if (
+                loadingList.prototype.start.executor.call(this) ===
+                false
+            ) return false;
+            // TODO fix list ambiguity
+            for (var item of this) setTimeout(item.start.bind(item));
+        })
 
-            start: dynamicMethod(function () {
-                if (
-                    loadingList.prototype.start.executor.call(this) ===
-                    false
-                ) return false;
-                // TODO fix list ambiguity
-                for (var item of this) setTimeout(item.start.bind(item));
-            })
-
-        }))
-
-    ),
+    }),
 
     // queue
     // inherits from loadingList
     //
     // eslint-disable-next-line no-unused-vars
-    queue = dev.queue = createFactory(
+    queue = dev.queue = createFactory({
 
-        function DeviserQueue(list) {
+        [$prototype]: loadingList.prototype,
+
+        [$constructor]: function DeviserQueue(list) {
             loadingList.constructor.call(this, list);
         },
 
-        createObj(loadingList.prototype, props({
+        start: dynamicMethod(function () {
+            if (
+                loadingList.prototype.start.executor.call(this) ===
+                false
+            ) return false;
+            var list = this.list(),
+                completeListener = function () {
+                    this.resolve(resolveListener, true)
+                        .complete(completeListener, true);
+                },
+                resolveListener = function () {
+                    var nextItem = list[list.indexOf(this) + 1];
+                    if (nextItem) nextItem.start();
+                };
+            this.stop(function stop() {
+                for (var item of list) completeListener.call(item);
+                this.stop(stop, true);
+            });
+            for (var item of list)
+                item.resolve(resolveListener)
+                    .complete(completeListener);
+            var first = list[0];
+            setTimeout(first.start.bind(first));
+        })
 
-            start: dynamicMethod(function () {
-                if (
-                    loadingList.prototype.start.executor.call(this) ===
-                    false
-                ) return false;
-                var list = this.list(),
-                    completeListener = function () {
-                        this.resolve(resolveListener, true)
-                            .complete(completeListener, true);
-                    },
-                    resolveListener = function () {
-                        var nextItem = list[list.indexOf(this) + 1];
-                        if (nextItem) nextItem.start();
-                    };
-                this.stop(function stop() {
-                    for (var item of list) completeListener.call(item);
-                    this.stop(stop, true);
-                });
-                for (var item of list)
-                    item.resolve(resolveListener)
-                        .complete(completeListener);
-                var first = list[0];
-                setTimeout(first.start.bind(first));
-            })
-
-        }))
-
-    ),
+    }),
 
     // animationCurve
     // inherits from root
@@ -1387,97 +1347,95 @@ const
         var coordsMap = weakmap(),
             sdMap = weakmap();
 
-        return createFactory(
+        return createFactory({
 
-            function DeviserAnimationCurve(coords) {
+            [$prototype]: root.prototype,
+
+            [$constructor]: function DeviserAnimationCurve(coords) {
                 root.constructor.call(this);
                 if (coords) this.coords(coords);
             },
 
-            createObj(root.prototype, props({
-
-                coords(newCoords) {
-                    if (newCoords) {
-                        coordsMap.set(this, newCoords);
-                        var n = newCoords.length / 2,
-                            matrix = new Array(n),
-                            result = new Float64Array(n),
-                            sd = new Float64Array(n);
-                        matrix[0] = matrix[n - 1] = [0, 1, 0];
-                        for (
-                            var halfInd = 1,
-                                m = n - 1,
-                                a, b, p1, p2, p3, ind;
-                            halfInd < m;
-                            halfInd++
-                        ) {
-                            ind = halfInd * 2;
-                            p1 = newCoords[ind];
-                            p2 = newCoords[ind - 2];
-                            p3 = newCoords[ind + 2];
-                            a = p3 - p1;
-                            b = p1 - p2;
-                            matrix[halfInd] = [b / 6, (p3 - p2) / 3, a / 6];
-                            p1 = newCoords[ind + 1];
-                            result[halfInd] = (
-                                (newCoords[ind + 3] - p1) / a -
-                                (p1 - newCoords[ind - 1]) / b
-                            );
-                        }
-                        ind = 1;
-                        for (var k; ind < n; ind++) {
-                            a = matrix[ind];
-                            b = matrix[ind - 1];
-                            k = a[0] / b[1];
-                            a[1] -= k * b[2];
-                            a[0] = 0;
-                            result[ind] -= k * result[ind - 1];
-                        }
-                        for (ind = n - 2; ind >= 0; ind--) {
-                            a = matrix[ind];
-                            b = matrix[ind + 1];
-                            k = a[2] / b[1];
-                            a[1] -= k * b[0];
-                            a[2] = 0;
-                            result[ind] -= k * result[ind + 1];
-                        }
-                        for (ind = 0; ind < n; ind++)
-                            sd[ind] = result[ind] / matrix[ind][1];
-                        sdMap.set(this, sd);
-                    }
-                    return coordsMap.get(this);
-                },
-
-                y(x) {
-                    var coords = coordsMap.get(this),
-                        sd = sdMap.get(this);
+            coords(newCoords) {
+                if (newCoords) {
+                    coordsMap.set(this, newCoords);
+                    var n = newCoords.length / 2,
+                        matrix = new Array(n),
+                        result = new Float64Array(n),
+                        sd = new Float64Array(n);
+                    matrix[0] = matrix[n - 1] = [0, 1, 0];
                     for (
-                        var ind = 0,
-                            cx, cy, nx, ny, a, b, h;
-                        ind < coords.length;
-                        ind += 2
-                    ) if (x < coords[ind]) {
-                        cx = coords[ind - 2];
-                        cy = coords[ind - 1];
-                        nx = coords[ind];
-                        ny = coords[ind + 1];
-                        break;
+                        var halfInd = 1,
+                            m = n - 1,
+                            a, b, p1, p2, p3, ind;
+                        halfInd < m;
+                        halfInd++
+                    ) {
+                        ind = halfInd * 2;
+                        p1 = newCoords[ind];
+                        p2 = newCoords[ind - 2];
+                        p3 = newCoords[ind + 2];
+                        a = p3 - p1;
+                        b = p1 - p2;
+                        matrix[halfInd] = [b / 6, (p3 - p2) / 3, a / 6];
+                        p1 = newCoords[ind + 1];
+                        result[halfInd] = (
+                            (newCoords[ind + 3] - p1) / a -
+                            (p1 - newCoords[ind - 1]) / b
+                        );
                     }
-                    h = nx - cx;
-                    b = (x - cx) / h;
-                    a = 1 - b;
-                    return (
-                        a * cy + b * ny +
-                        (h * h / 6) * (
-                            (a * a * a - a) * sd[ind / 2 - 1] +
-                            (b * b * b - b) * sd[ind / 2]
-                        )
-                    );
+                    ind = 1;
+                    for (var k; ind < n; ind++) {
+                        a = matrix[ind];
+                        b = matrix[ind - 1];
+                        k = a[0] / b[1];
+                        a[1] -= k * b[2];
+                        a[0] = 0;
+                        result[ind] -= k * result[ind - 1];
+                    }
+                    for (ind = n - 2; ind >= 0; ind--) {
+                        a = matrix[ind];
+                        b = matrix[ind + 1];
+                        k = a[2] / b[1];
+                        a[1] -= k * b[0];
+                        a[2] = 0;
+                        result[ind] -= k * result[ind + 1];
+                    }
+                    for (ind = 0; ind < n; ind++)
+                        sd[ind] = result[ind] / matrix[ind][1];
+                    sdMap.set(this, sd);
                 }
+                return coordsMap.get(this);
+            },
 
-            }))
+            y(x) {
+                var coords = coordsMap.get(this),
+                    sd = sdMap.get(this);
+                for (
+                    var ind = 0,
+                        cx, cy, nx, ny, a, b, h;
+                    ind < coords.length;
+                    ind += 2
+                ) if (x < coords[ind]) {
+                    cx = coords[ind - 2];
+                    cy = coords[ind - 1];
+                    nx = coords[ind];
+                    ny = coords[ind + 1];
+                    break;
+                }
+                h = nx - cx;
+                b = (x - cx) / h;
+                a = 1 - b;
+                return (
+                    a * cy + b * ny +
+                    (h * h / 6) * (
+                        (a * a * a - a) * sd[ind / 2 - 1] +
+                        (b * b * b - b) * sd[ind / 2]
+                    )
+                );
+            }
 
-        );
+        });
 
     })(),
 
@@ -1499,79 +1457,77 @@ const
             if (completion === 1) this.resolve();
         }
 
-        return createFactory(
+        return createFactory({
 
-            function DeviserAnimation(time) {
+            [$prototype]: loadingTarget.prototype,
+
+            [$constructor]: function DeviserAnimation(time) {
                 loadingTarget.constructor.call(this);
                 if (time) this.time(time);
             },
 
-            createObj(loadingTarget.prototype, props({
+            time: property(),
+            curve: property(),
+            update: dynamicMethod(),
 
-                time: property(),
-                curve: property(),
-                update: dynamicMethod(),
+            start: dynamicMethod(function () {
+                if (
+                    loadingTarget.prototype.start.executor.call(
+                        this
+                    ) ===
+                    false
+                ) return false;
+                var animation = animationFrameLoop().update(
+                    updater.bind(this)
+                );
+                this.stop(function stop() {
+                    animation.stop();
+                    this.stop(stop, true);
+                });
+                animation.start();
+            })
 
-                start: dynamicMethod(function () {
-                    if (
-                        loadingTarget.prototype.start.executor.call(
-                            this
-                        ) ===
-                        false
-                    ) return false;
-                    var animation = animationFrameLoop().update(
-                        updater.bind(this)
-                    );
-                    this.stop(function stop() {
-                        animation.stop();
-                        this.stop(stop, true);
-                    });
-                    animation.start();
-                })
+        });
 
-            }))
-        );
     })(),
 
     // wait
     // inherits from loadingTarget
     //
     // eslint-disable-next-line no-unused-vars
-    wait = dev.wait = createFactory(
+    wait = dev.wait = createFactory({
 
-        function DeviserWait(time) {
+        [$prototype]: loadingTarget.prototype,
+
+        [$constructor]: function DeviserWait(time) {
             loadingTarget.constructor.call(this);
             if (time) this.time(time);
         },
 
-        createObj(loadingTarget.prototype, props({
+        time: property(),
 
-            time: property(),
+        start: dynamicMethod(function () {
+            if (
+                loadingTarget.prototype.start.executor.call(this) ===
+                false
+            ) return false;
+            // var canstop = true;
+            this.stop(function stop() {
+                // canstop = false;
+                this.stop(stop, true);
+            });
+            // TODO use st instead of setTimeout
+            setTimeout(this.resolve.bind(this), this.time());
+        })
 
-            start: dynamicMethod(function () {
-                if (
-                    loadingTarget.prototype.start.executor.call(this) ===
-                    false
-                ) return false;
-                // var canstop = true;
-                this.stop(function stop() {
-                    // canstop = false;
-                    this.stop(stop, true);
-                });
-                // TODO use st instead of setTimeout
-                setTimeout(this.resolve.bind(this), this.time());
-            })
-
-        }))
-
-    ),
+    }),
 
     // element      factories
     //
     // using:
     // - createEl   utils
     //
-    element = dev.element = (function () {
+    element = dev.element = (() => {
 
         function styleSetter(key, value) {
             // this refers to the style property of the DOM element
@@ -1599,9 +1555,11 @@ const
             domElementsMap = weakmap(),
             devElementsMap = weakmap(),
             prefixes = ['webkit', 'Moz'],
-            element = createFactory(
+            element = createFactory({
 
-                function DeviserElement(element) {
+                [$prototype]: root.prototype,
+
+                [$constructor]: function DeviserElement(element) {
                     root.constructor.call(this);
                     if (element) {
                         // TODO throw error if the element is not a string
@@ -1610,402 +1568,399 @@ const
                         domElementsMap.set(this, domElement);
                     }
                 },
-                createObj(root.prototype, props({
 
-                    element(/* newElement */) {
-                        // TODO throw error if newElement exist
-                        return domElementsMap.get(this);
-                    },
+                element(/* newElement */) {
+                    // TODO throw error if newElement exist
+                    return domElementsMap.get(this);
+                },
 
-                    setClasses(classes) {
-                        this.element().className = classes;
-                        return this;
-                    },
+                setClasses(classes) {
+                    this.element().className = classes;
+                    return this;
+                },
 
-                    addClass(className) {
-                        this.element().classList.add(className);
-                        return this;
-                    },
+                addClass(className) {
+                    this.element().classList.add(className);
+                    return this;
+                },
 
-                    removeClass(className) {
-                        this.element().classList.remove(className);
-                        return this;
-                    },
+                removeClass(className) {
+                    this.element().classList.remove(className);
+                    return this;
+                },
 
-                    hasClass(className) {
-                        return this.element().classList.contains(className);
-                    },
+                hasClass(className) {
+                    return this.element().classList.contains(className);
+                },
 
-                    css(arg) {
-                        var listeners, listener, style;
-                        if (typeof arg === 'string') {
-                            if (arguments.length > 1) {
-                                // TODO do it properly with computed
-                                // property names when chrome will support
-                                // them
-                                style = {};
-                                style[arg] = arguments[1];
-                                return this.css(style);
-                            }
-                            listeners = dynamicStyleListenersMap.get(this);
-                            if (listeners) {
-                                listener = listeners[arg];
-                                if (listener) return listener;
-                            }
-                            style = this.element().style[arg];
-                            if (style !== null) return style;
-                            // TODO save getComputedStyle as a variable
-                            return getComputedStyle(
-                                this.element()
-                            ).getPropetyValue(arg);
+                css(arg) {
+                    var listeners, listener, style;
+                    if (typeof arg === 'string') {
+                        if (arguments.length > 1) {
+                            // TODO do it properly with computed
+                            // property names when chrome will support
+                            // them
+                            style = {};
+                            style[arg] = arguments[1];
+                            return this.css(style);
                         }
-                        if (arg instanceof Array) {
-                            var output = {};
-                            for (var item of arg)
-                                // TODO save String as a variable
-                                output[item] = this.arg(String(item));
-                            return output;
-                        }
-                        var // prevStyle,
-                            domElementStyle = this.element().style;
                         listeners = dynamicStyleListenersMap.get(this);
-                        for (var key in arg) {
-                            if (listeners) {
-                                // remove dynamic value
-                                listener = listeners[key];
-                                if (listener) {
-                                    listener[0].value(listener[1], true);
-                                    delete listeners[key];
-                                }
-                            }
-                            style = arg[key];
-                            if (style instanceof dynamicValue.constructor) {
-                                // add dynamic value
-                                if (!listeners)
-                                    dynamicStyleListenersMap.set(
-                                        this,
-                                        listeners = {}
-                                    );
-                                listener = styleSetter.bind(
-                                    domElementStyle,
-                                    key
-                                );
-                                listeners[key] = [
-                                    style.value(listener),
-                                    listener
-                                ];
-                                listener(style.value());
-                            }
-                            else styleSetter.call(
-                                domElementStyle,
-                                key,
-                                style
-                            );
-                        }
-                        return this;
-                    },
-
-                    cssWidth(newCssWidth) {
-                        if (newCssWidth)
-                            return this.css({ width: newCssWidth });
-                        return this.css('width');
-                    },
-
-                    cssHeight(newCssHeight) {
-                        if (newCssHeight)
-                            return this.css({ height: newCssHeight });
-                        return this.css('height');
-                    },
-
-                    add() {
-                        var domElement = this.element();
-                        for (
-                            var ind = 0, item;
-                            ind < arguments.length;
-                            ind++
-                        ) {
-                            item = arguments[ind];
-                            if (typeof item === 'string')
-                                domElement.appendChild(
-                                    doc.createTextNode(item)
-                                );
-                            else if (item instanceof element.constructor)
-                                domElement.appendChild(item.element());
-                            else if (item[Symbol.iterator])
-                                // TODO store Symbol.iterator property value
-                                // as variable
-                                this.add(...item);
-                            // TODO
-                            // else throw error
-                        }
-                        return this;
-                    },
-
-                    remove() {
-                        var domElement = this.element();
-                        if (arguments.length)
-                            for (var ind = 0; ind < arguments.length; ind++)
-                                domElement.removeChild(
-                                    arguments[ind].element()
-                                );
-                        else domElement.remove();
-                        return this;
-                    },
-
-                    html(newHTML) {
-                        if (newHTML !== undefined) {
-                            this.element().innerHTML = newHTML;
-                            return this;
-                        }
-                        return this.element().innerHTML;
-                    },
-
-                    text(newText) {
-                        if (newText !== undefined) {
-                            this.element().textContent = newText;
-                            return this;
-                        }
-                        return this.element().textContent;
-                    },
-
-                    appendTo(element) {
-                        element.element().appendChild(this.element());
-                        return this;
-                    },
-
-                    replaceWith(element) {
-                        var domElement = this.element(),
-                            parent = domElement.parentNode;
-                        if (parent) {
-                            parent.removeChild(domElement);
-                            parent.appendChild(element.element());
-                        }
-                        return this;
-                    },
-
-                    parent(newParent) {
-                        if (newParent) {
-                            newParent.add(this);
-                            return this;
-                        }
-                        return element.get(this.element().parent);
-                    },
-
-                    children(newChildren) {
-                        if (newChildren) {
-                            this.clear().add(newChildren);
-                            return this;
-                        }
-                        var coll = collection();
-                        for (var child of this.element().children)
-                            coll.append(element.get(child));
-                        return coll;
-                    },
-
-                    insert(element, index) {
-                        var thisElement = this.element(),
-                            elemElement = element.element();
-                        if (elemElement.parent === thisElement)
-                            thisElement.removeChild(elemElement);
-                        var children = thisElement.children;
-                        if (index < children.length)
-                            thisElement.insertBefore(
-                                element.element,
-                                children[index]
-                            );
-                        else thisElement.appendChild(elemElement);
-                        return this;
-                    },
-
-                    index(newIndex) {
-                        var domElement = this.element(),
-                            parent = element.parent;
-                        if (newIndex !== undefined) {
-                            if (parent)
-                                element.get(parent).insert(this, newIndex);
-                            return this;
-                        }
-                        if (parent)
-                            return parent.children.indexOf(domElement);
-                        return null;
-                    },
-
-                    siblings(newSiblings) {
-                        var parent = this.parent();
-                        if (newSiblings) {
-                            if (parent) parent.children(
-                                collection(newSiblings)
-                                    .insert(this, this.index())
-                            );
-                            return this;
-                        }
-                        return parent.children().remove(this);
-                    },
-
-                    on(eventType, listener) {
-
-                        var listeners = listenersMap.get(this);
-                        if (!listeners)
-                            listenersMap.set(this, listeners = {});
-                        var typeListeners = listeners[eventType];
-                        if (!typeListeners)
-                            typeListeners = listeners[eventType] = {};
-
-                        this.element().addEventListener(
-
-                            eventType,
-
-                            typeListeners[listener] = (
-
-                                typeof listener === 'function' ?
-
-                                    listener.bind(this) :
-
-                                    listener instanceof runnable.constructor ?
-
-                                        listener.start.bind(listener) :
-
-                                        () => {
-                                            this.css(listener);
-                                        }
-
-                            )
-                        );
-
-                        return this;
-
-                    },
-
-                    off(eventType, listener) {
-                        var listeners = listenersMap.get(this);
                         if (listeners) {
-                            var typeListeners = listeners[eventType];
-                            if (typeListeners && typeListeners[listener]) {
-                                this.element().removeEventListener(
-                                    eventType,
-                                    typeListeners[listener]
-                                );
-                                delete typeListeners[listener];
+                            listener = listeners[arg];
+                            if (listener) return listener;
+                        }
+                        style = this.element().style[arg];
+                        if (style !== null) return style;
+                        // TODO save getComputedStyle as a variable
+                        return getComputedStyle(
+                            this.element()
+                        ).getPropetyValue(arg);
+                    }
+                    if (arg instanceof Array) {
+                        var output = {};
+                        for (var item of arg)
+                            // TODO save String as a variable
+                            output[item] = this.arg(String(item));
+                        return output;
+                    }
+                    var // prevStyle,
+                        domElementStyle = this.element().style;
+                    listeners = dynamicStyleListenersMap.get(this);
+                    for (var key in arg) {
+                        if (listeners) {
+                            // remove dynamic value
+                            listener = listeners[key];
+                            if (listener) {
+                                listener[0].value(listener[1], true);
+                                delete listeners[key];
                             }
                         }
-                        return this;
-                    },
-
-                    trigger(eventType) {
-                        this.element().dispatchEvent(new Event(eventType));
-                        return this;
-                    },
-
-                    clear() {
-                        for (var child of this.element().children)
-                            child.remove();
-                        return this;
-                    },
-
-                    id(newId) {
-                        if (newId) {
-                            this.element().id = newId;
-                            return this;
-                        }
-                        return this.element().id;
-                    },
-
-                    click(listener, remove) {
-                        return this[remove ? 'off' : 'on'](
-                            'click',
-                            listener
-                        );
-                    },
-
-                    hover(mouseenter, mouseleave, remove) {
-                        var prop = remove ? 'off' : 'on';
-                        if (mouseenter)
-                            this[prop]('mouseenter', mouseenter);
-                        if (mouseleave)
-                            this[prop]('mouseleave', mouseleave);
-                        return this;
-                    },
-
-                    insertBefore(elem1, elem2) {
-                        var elem1element = elem1.element();
-                        if (elem2) this.element().insertBefore(
-                            elem1element,
-                            elem2.element
-                        );
-                        else {
-                            var parent = elem1element.parentNode;
-                            if (parent) parent.insertBefore(
-                                this.element(),
-                                elem1element
+                        style = arg[key];
+                        if (style instanceof dynamicValue.constructor) {
+                            // add dynamic value
+                            if (!listeners)
+                                dynamicStyleListenersMap.set(
+                                    this,
+                                    listeners = {}
+                                );
+                            listener = styleSetter.bind(
+                                domElementStyle,
+                                key
                             );
+                            listeners[key] = [
+                                style.value(listener),
+                                listener
+                            ];
+                            listener(style.value());
                         }
-                        return this;
-                    },
+                        else styleSetter.call(
+                            domElementStyle,
+                            key,
+                            style
+                        );
+                    }
+                    return this;
+                },
 
-                    insertAfter(elem1, elem2) {
-                        var elem1element = elem1.element(),
-                            nextSibling;
-                        if (elem2) {
-                            // TODO if elem2.element.parent is not
-                            // this.element throw error
-                            nextSibling = elem2.element().nextSibling;
-                            if (nextSibling) this.element().insertBefore(
-                                elem1element,
+                cssWidth(newCssWidth) {
+                    if (newCssWidth)
+                        return this.css({ width: newCssWidth });
+                    return this.css('width');
+                },
+
+                cssHeight(newCssHeight) {
+                    if (newCssHeight)
+                        return this.css({ height: newCssHeight });
+                    return this.css('height');
+                },
+
+                add() {
+                    var domElement = this.element();
+                    for (
+                        var ind = 0, item;
+                        ind < arguments.length;
+                        ind++
+                    ) {
+                        item = arguments[ind];
+                        if (typeof item === 'string')
+                            domElement.appendChild(
+                                doc.createTextNode(item)
+                            );
+                        else if (item instanceof element.constructor)
+                            domElement.appendChild(item.element());
+                        else if (item[Symbol.iterator])
+                            // TODO store Symbol.iterator property value
+                            // as variable
+                            this.add(...item);
+                        // TODO
+                        // else throw error
+                    }
+                    return this;
+                },
+
+                remove() {
+                    var domElement = this.element();
+                    if (arguments.length)
+                        for (var ind = 0; ind < arguments.length; ind++)
+                            domElement.removeChild(
+                                arguments[ind].element()
+                            );
+                    else domElement.remove();
+                    return this;
+                },
+
+                html(newHTML) {
+                    if (newHTML !== undefined) {
+                        this.element().innerHTML = newHTML;
+                        return this;
+                    }
+                    return this.element().innerHTML;
+                },
+
+                text(newText) {
+                    if (newText !== undefined) {
+                        this.element().textContent = newText;
+                        return this;
+                    }
+                    return this.element().textContent;
+                },
+
+                appendTo(element) {
+                    element.element().appendChild(this.element());
+                    return this;
+                },
+
+                replaceWith(element) {
+                    var domElement = this.element(),
+                        parent = domElement.parentNode;
+                    if (parent) {
+                        parent.removeChild(domElement);
+                        parent.appendChild(element.element());
+                    }
+                    return this;
+                },
+
+                parent(newParent) {
+                    if (newParent) {
+                        newParent.add(this);
+                        return this;
+                    }
+                    return element.get(this.element().parent);
+                },
+
+                children(newChildren) {
+                    if (newChildren) {
+                        this.clear().add(newChildren);
+                        return this;
+                    }
+                    var coll = collection();
+                    for (var child of this.element().children)
+                        coll.append(element.get(child));
+                    return coll;
+                },
+
+                insert(element, index) {
+                    var thisElement = this.element(),
+                        elemElement = element.element();
+                    if (elemElement.parent === thisElement)
+                        thisElement.removeChild(elemElement);
+                    var children = thisElement.children;
+                    if (index < children.length)
+                        thisElement.insertBefore(
+                            element.element,
+                            children[index]
+                        );
+                    else thisElement.appendChild(elemElement);
+                    return this;
+                },
+
+                index(newIndex) {
+                    var domElement = this.element(),
+                        parent = element.parent;
+                    if (newIndex !== undefined) {
+                        if (parent)
+                            element.get(parent).insert(this, newIndex);
+                        return this;
+                    }
+                    if (parent)
+                        return parent.children.indexOf(domElement);
+                    return null;
+                },
+
+                siblings(newSiblings) {
+                    var parent = this.parent();
+                    if (newSiblings) {
+                        if (parent) parent.children(
+                            collection(newSiblings)
+                                .insert(this, this.index())
+                        );
+                        return this;
+                    }
+                    return parent.children().remove(this);
+                },
+
+                on(eventType, listener) {
+
+                    var listeners = listenersMap.get(this);
+                    if (!listeners)
+                        listenersMap.set(this, listeners = {});
+                    var typeListeners = listeners[eventType];
+                    if (!typeListeners)
+                        typeListeners = listeners[eventType] = {};
+
+                    this.element().addEventListener(
+
+                        eventType,
+
+                        typeListeners[listener] = (
+
+                            typeof listener === 'function' ?
+
+                                listener.bind(this) :
+
+                                listener instanceof runnable.constructor ?
+
+                                    listener.start.bind(listener) :
+
+                                    () => {
+                                        this.css(listener);
+                                    }
+
+                        )
+                    );
+
+                    return this;
+
+                },
+
+                off(eventType, listener) {
+                    var listeners = listenersMap.get(this);
+                    if (listeners) {
+                        var typeListeners = listeners[eventType];
+                        if (typeListeners && typeListeners[listener]) {
+                            this.element().removeEventListener(
+                                eventType,
+                                typeListeners[listener]
+                            );
+                            delete typeListeners[listener];
+                        }
+                    }
+                    return this;
+                },
+
+                trigger(eventType) {
+                    this.element().dispatchEvent(new Event(eventType));
+                    return this;
+                },
+
+                clear() {
+                    for (var child of this.element().children)
+                        child.remove();
+                    return this;
+                },
+
+                id(newId) {
+                    if (newId) {
+                        this.element().id = newId;
+                        return this;
+                    }
+                    return this.element().id;
+                },
+
+                click(listener, remove) {
+                    return this[remove ? 'off' : 'on'](
+                        'click',
+                        listener
+                    );
+                },
+
+                hover(mouseenter, mouseleave, remove) {
+                    var prop = remove ? 'off' : 'on';
+                    if (mouseenter)
+                        this[prop]('mouseenter', mouseenter);
+                    if (mouseleave)
+                        this[prop]('mouseleave', mouseleave);
+                    return this;
+                },
+
+                insertBefore(elem1, elem2) {
+                    var elem1element = elem1.element();
+                    if (elem2) this.element().insertBefore(
+                        elem1element,
+                        elem2.element
+                    );
+                    else {
+                        var parent = elem1element.parentNode;
+                        if (parent) parent.insertBefore(
+                            this.element(),
+                            elem1element
+                        );
+                    }
+                    return this;
+                },
+
+                insertAfter(elem1, elem2) {
+                    var elem1element = elem1.element(),
+                        nextSibling;
+                    if (elem2) {
+                        // TODO if elem2.element.parent is not
+                        // this.element throw error
+                        nextSibling = elem2.element().nextSibling;
+                        if (nextSibling) this.element().insertBefore(
+                            elem1element,
+                            nextSibling
+                        );
+                        else this.element().appendChild(elem1element);
+                    }
+                    else {
+                        var parent = elem1element.parentNode;
+                        if (parent) {
+                            nextSibling = elem1element.nextSibling;
+                            if (nextSibling) parent.insertBefore(
+                                this.element(),
                                 nextSibling
                             );
-                            else this.element().appendChild(elem1element);
+                            else parent.appendChild(this.element());
                         }
-                        else {
-                            var parent = elem1element.parentNode;
-                            if (parent) {
-                                nextSibling = elem1element.nextSibling;
-                                if (nextSibling) parent.insertBefore(
-                                    this.element(),
-                                    nextSibling
-                                );
-                                else parent.appendChild(this.element());
-                            }
-                        }
-                    },
-
-                    show() {
-                        return this.css({ display: null });
-                    },
-
-                    hide() {
-                        return this.css({ display: 'none' });
-                    },
-
-                    rect() {
-                        return this.element().getBoundingClientRect();
-                    },
-
-                    width() {
-                        return this.rect().width;
-                    },
-
-                    height() {
-                        return this.rect().height;
-                    },
-
-                    get(selector, onlyOne) {
-                        if (onlyOne) return (
-                            element.get(
-                                this.element().querySelector(selector)
-                            ) ||
-                            null
-                        );
-                        var coll = collection();
-                        for (
-                            var domElement
-                            of this.element().querySelectorAll(selector)
-                        ) coll.append(element.get(domElement));
-                        return coll;
                     }
+                },
 
-                }))
+                show() {
+                    return this.css({ display: null });
+                },
 
-            );
+                hide() {
+                    return this.css({ display: 'none' });
+                },
+
+                rect() {
+                    return this.element().getBoundingClientRect();
+                },
+
+                width() {
+                    return this.rect().width;
+                },
+
+                height() {
+                    return this.rect().height;
+                },
+
+                get(selector, onlyOne) {
+                    if (onlyOne) return (
+                        element.get(
+                            this.element().querySelector(selector)
+                        ) ||
+                        null
+                    );
+                    var coll = collection();
+                    for (
+                        var domElement
+                        of this.element().querySelectorAll(selector)
+                    ) coll.append(element.get(domElement));
+                    return coll;
+                }
+
+            });
 
         element.get = function (domElement) {
             if (!domElement) return null;
@@ -2027,16 +1982,16 @@ const
     // using:
     // - createObj
     //
-    div = dev.div = createFactory(
+    div = dev.div = createFactory({
 
-        function DeviserDivElement(content) {
+        [$prototype]: element.prototype,
+
+        [$constructor]: function DeviserDivElement(content) {
             element.constructor.call(this, 'div');
             if (content !== undefined) this.add(content);
-        },
+        }
 
-        createObj(element.prototype)
-
-    ),
+    }),
 
     // tableDiv             factories
     // inherits from div    factories
@@ -2044,16 +1999,16 @@ const
     // using:
     // - createObj
     //
-    tableDiv = dev.tableDiv = createFactory(
+    tableDiv = dev.tableDiv = createFactory({
 
-        function DeviserTableDivElement(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserTableDivElement(content) {
             div.constructor.call(this, content);
             this.css({ display: 'table' });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // wrappedTableDiv          factories
     // inherits from tableDiv   factories
@@ -2062,16 +2017,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    wrappedTableDiv = dev.wrappedTableDiv = createFactory(
+    wrappedTableDiv = dev.wrappedTableDiv = createFactory({
 
-        function DeviserWrappedTableDivElement(content) {
+        [$prototype]: tableDiv.prototype,
+
+        [$constructor]: function DeviserWrappedTableDivElement(content) {
             tableDiv.constructor.call(this, content);
             this.css({ width: '100%', height: '100%' });
-        },
+        }
 
-        createObj(tableDiv.prototype)
-
-    ),
+    }),
 
     // trDiv                factories
     // inherits from div    factories
@@ -2080,16 +2035,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    trDiv = dev.trDiv = createFactory(
+    trDiv = dev.trDiv = createFactory({
 
-        function DeviserTableRowDivElement(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserTableRowDivElement(content) {
             div.constructor.call(this, content);
             this.css({ display: 'table-row' });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // tdDiv                factories
     // inherits from div    factories
@@ -2098,16 +2053,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    tdDiv = dev.tdDiv = createFactory(
+    tdDiv = dev.tdDiv = createFactory({
 
-        function DeviserTableCellDivElement(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserTableCellDivElement(content) {
             div.constructor.call(this, content);
             this.css({ display: 'table-cell' });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // center               factories
     // inherits from div    factories
@@ -2116,16 +2071,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    center = dev.center = createFactory(
+    center = dev.center = createFactory({
 
-        function DeviserCenterElement(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserCenterElement(content) {
             div.constructor.call(this, content);
             this.css({ textAlign: 'center' });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // left                 factories
     // inherits from div    factories
@@ -2134,16 +2089,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    left = dev.left = createFactory(
+    left = dev.left = createFactory({
 
-        function DeviserLeftElement(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserLeftElement(content) {
             div.constructor.call(this, content);
             this.css({ textAlign: 'left' });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // right                factories
     // inherits from div    factories
@@ -2152,77 +2107,79 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    right = dev.right = createFactory(
+    right = dev.right = createFactory({
 
-        function DeviserRightElement(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserRightElement(content) {
             div.constructor.call(this, content);
             this.css({ textAlign: 'right' });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // inline               factories
     // inherits from div    factories
     //
     // eslint-disable-next-line no-unused-vars
-    inline = dev.inline = createFactory(
+    inline = dev.inline = createFactory({
 
-        function DeviserInlineBlockDiv(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserInlineBlockDiv(content) {
             div.constructor.call(this, content);
             this.css({ display: 'inline-block' });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // yCentered            factories
     // inherits from div    factories
     //
     // eslint-disable-next-line no-unused-vars
-    yCentered = dev.yCentered = createFactory(
+    yCentered = dev.yCentered = createFactory({
 
-        function DeviserVerticallyCenteredDiv(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserVerticallyCenteredDiv(content) {
             div.constructor.call(this, content);
             this.css({
                 position: 'relative',
                 top: '50%',
                 transform: 'translateY(-50%)'
             });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // xCentered            factories
     // inherits from div    factories
     //
     // eslint-disable-next-line no-unused-vars
-    xCentered = dev.xCentered = createFactory(
+    xCentered = dev.xCentered = createFactory({
 
-        function DeviserHorizontallyCenteredDiv(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserHorizontallyCenteredDiv(content) {
             div.constructor.call(this, content);
             this.css({
                 position: 'relative',
                 left: '50%',
                 transform: 'translateX(-50%)'
             });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // cnetered             factories
     // inherits from div    factories
     //
     // eslint-disable-next-line no-unused-vars
-    centered = dev.centered = createFactory(
+    centered = dev.centered = createFactory({
 
-        function DeviserCenteredDiv(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserCenteredDiv(content) {
             div.constructor.call(this, content);
             this.css({
                 position: 'relative',
@@ -2230,11 +2187,9 @@ const
                 left: '50%',
                 transform: 'translate(-50%, -50%)'
             });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // wrapped                  factories
     // inherits from div        factories
@@ -2243,19 +2198,19 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    wrapped = dev.wrapped = createFactory(
+    wrapped = dev.wrapped = createFactory({
 
-        function DeviserWrappedElement(content) {
+        [$prototype]: div.prototype,
+
+        [$constructor]: function DeviserWrappedElement(content) {
             div.constructor.call(this, content);
             this.css({
                 width: '100%',
                 height: '100%'
             });
-        },
+        }
 
-        createObj(div.prototype)
-
-    ),
+    }),
 
     // canvas                   factories
     // inherits from element    factories
@@ -2263,15 +2218,15 @@ const
     // using:
     // - createObj
     //
-    canvas = dev.canvas = createFactory(
+    canvas = dev.canvas = createFactory({
 
-        function DeviserCanvasElement() {
+        [$prototype]: element.prototype,
+
+        [$constructor]: function DeviserCanvasElement() {
             element.constructor.call(this, 'canvas');
-        },
+        }
 
-        createObj(element.prototype)
-
-    ),
+    }),
 
     // canvas2D             factories
     // inherits from canvas factories
@@ -2280,21 +2235,19 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    canvas2D = dev.canvas2D = createFactory(
+    canvas2D = dev.canvas2D = createFactory({
 
-        function DeviserCanvas2DElement() {
+        [$prototype]: canvas.prototype,
+
+        [$constructor]: function DeviserCanvas2DElement() {
             canvas.constructor.call(this);
         },
 
-        createObj(canvas.prototype, props({
+        context() {
+            return this.element().getContext('2d');
+        }
 
-            context() {
-                return this.element().getContext('2d');
-            }
-
-        }))
-
-    ),
+    }),
 
     // span                     factories
     // inherits from element    factories
@@ -2303,16 +2256,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    span = dev.span = createFactory(
+    span = dev.span = createFactory({
 
-        function DeviserSpanElement(content) {
+        [$prototype]: element.prototype,
+
+        [$constructor]: function DeviserSpanElement(content) {
             element.constructor.call(this, 'span');
             if (content !== undefined) this.add(content);
-        },
+        }
 
-        createObj(element.prototype)
-
-    ),
+    }),
 
     // b                        factories
     // inherits from element    factories
@@ -2321,16 +2274,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    b = dev.b = createFactory(
+    b = dev.b = createFactory({
 
-        function DeviserBoldTextElement(content) {
+        [$prototype]: element.prototype,
+
+        [$constructor]: function DeviserBoldTextElement(content) {
             element.constructor.call(this, 'b');
             if (content !== undefined) this.add(content);
-        },
+        }
 
-        createObj(element.prototype)
-
-    ),
+    }),
 
     // i                        factories
     // inherits from element    factories
@@ -2339,16 +2292,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    i = dev.i = createFactory(
+    i = dev.i = createFactory({
 
-        function DeviserItalicTextElement(content) {
+        [$prototype]: element.prototype,
+
+        [$constructor]: function DeviserItalicTextElement(content) {
             element.constructor.call(this, 'i');
             if (content !== undefined) this.add(content);
-        },
+        }
 
-        createObj(element.prototype)
-
-    ),
+    }),
 
     // a                        factories
     // inherits from element    factories
@@ -2356,26 +2309,24 @@ const
     // using:
     // - createObj
     //
-    a = dev.a = createFactory(
+    a = dev.a = createFactory({
 
-        function DeviserAnchorElement(content) {
+        [$prototype]: element.prototype,
+
+        [$constructor]: function DeviserAnchorElement(content) {
             element.constructor.call(this, 'a');
             if (content !== undefined) this.add(content);
         },
 
-        createObj(element.prototype, props({
-
-            href(newHref) {
-                if (newHref) {
-                    this.element().href = newHref;
-                    return this;
-                }
-                return this.element().href;
+        href(newHref) {
+            if (newHref) {
+                this.element().href = newHref;
+                return this;
             }
+            return this.element().href;
+        }
 
-        }))
-
-    ),
+    }),
 
     // input                    factories
     // inherits from element    factories
@@ -2383,33 +2334,32 @@ const
     // using:
     // - createObj
     //
-    input = dev.input = createFactory(
+    input = dev.input = createFactory({
 
-        function DeviserInputElement(type) {
+        [$prototype]: element.prototype,
+
+        [$constructor]: function DeviserInputElement(type) {
             element.constructor.call(this, 'input');
             if (type !== undefined) this.type(type);
         },
 
-        createObj(element.prototype, props({
-
-            type(newType) {
-                if (newType !== undefined) {
-                    this.element().type = newType;
-                    return this;
-                }
-                return this.element().type;
-            },
-
-            value(newValue) {
-                if (newValue !== undefined) {
-                    this.element().value = newValue;
-                    return this;
-                }
-                return this.element().value;
+        type(newType) {
+            if (newType !== undefined) {
+                this.element().type = newType;
+                return this;
             }
+            return this.element().type;
+        },
 
-        }))
-    ),
+        value(newValue) {
+            if (newValue !== undefined) {
+                this.element().value = newValue;
+                return this;
+            }
+            return this.element().value;
+        }
+
+    }),
 
     // textInput            factories
     // inherits from input  factories
@@ -2418,16 +2368,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    textInput = dev.textInput = createFactory(
+    textInput = dev.textInput = createFactory({
 
-        function DeviserTextInputElement(value) {
+        [$prototype]: input.prototype,
+
+        [$constructor]: function DeviserTextInputElement(value) {
             input.constructor.call(this, 'text');
             if (value !== undefined) this.value(value);
-        },
+        }
 
-        createObj(input.prototype)
-
-    ),
+    }),
 
     // link             factories
     // inherits from a  factories
@@ -2436,16 +2386,16 @@ const
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    link = dev.link = createFactory(
+    link = dev.link = createFactory({
 
-        function DeviserLinkElement(url) {
+        [$prototype]: a.prototype,
+
+        [$constructor]: function DeviserLinkElement(url) {
             a.constructor.call(this, url);
             if (url !== undefined) this.href(url);
-        },
+        }
 
-        createObj(a.prototype)
-
-    );
+    });
 
 /* -------------------------------------------------------------------------- */
 
