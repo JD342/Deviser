@@ -1,6 +1,6 @@
 /*
 
-    Deviser.js 003
+    JOY Framework 001
     Copyright (c) 2014-2018 Nicola Fiori
 
     All rights reserved.
@@ -11,18 +11,16 @@
 
 // TODO finish documentation
 
-const dev = {};
+const J = {};
 
 (function () {
 
 const
-    utils = dev.utils = {},
+    utils = J.utils = {},
+    $constructor = J.$constructor = Symbol('JOY Framework Factory Constructor'),
+    $prototype = J.$prototype = Symbol('JOY Framework Factory Prototype'),
 
-    $constructor = dev.$constructor = Symbol('Deviser Factory Constructor'),
-
-    $prototype = dev.$prototype = Symbol('Deviser Factory Prototype'),
-
-    createFactory = dev.createFactory = (() => {
+    Factory = J.Factory = (() => {
 
         function factory(arg1, arg2) {
             var behaviour,
@@ -41,7 +39,7 @@ const
             return output;
         }
 
-        return function createFactory(properties) {
+        return function Factory(properties) {
             const constructor = properties[$constructor];
             const prototype =
                 createObj(properties[$prototype], props(properties));
@@ -245,22 +243,22 @@ const
         return obj1;
     },
 
-    // dynamicMethod    utils
+    // DynamicMethod    utils
     //
     // using:
     // - weakmap        core utils
     //
-    dynamicMethod = utils.dynamicMethod = (executor) => {
+    DynamicMethod = utils.DynamicMethod = (executor) => {
 
         var listenersMap = weakmap(),
             notProcessing = true,
             iolrdp; // Indices Of Listeners Removed During Processing
 
-        function dynamicMethod(listener, removeListener) {
+        function DynamicMethod(listener, removeListener) {
             var listeners;
             // loop trough listeners
             if (typeof listener !== 'function') {
-                var executor = dynamicMethod.executor;
+                var executor = DynamicMethod.executor;
                 if (!executor || executor.apply(this, arguments) !== false)
                     if (listeners = listenersMap.get(this)) {
                         notProcessing = false;
@@ -300,24 +298,24 @@ const
             return this;
         }
 
-        dynamicMethod.executor = executor;
+        DynamicMethod.executor = executor;
 
-        dynamicMethod.getListenersOf = (object) => {
+        DynamicMethod.getListenersOf = (object) => {
             return listenersMap.get(object);
         };
 
-        return dynamicMethod;
+        return DynamicMethod;
 
     },
 
-    // dynamicProperty
+    // DynamicProperty
     //
     // using:
-    // - dynamicMethod
+    // - DynamicMethod
     //
-    dynamicProperty = utils.dynamicProperty = (defaultValue) => {
+    DynamicProperty = utils.DynamicProperty = (defaultValue) => {
 
-        var method = dynamicMethod(),
+        var method = DynamicMethod(),
             valueMap = weakmap();
 
         function property(newValue) {
@@ -340,22 +338,22 @@ const
 
     },
 
-    // property
+    // Property
     //
-    property = utils.property = (defaultValue) => {
+    Property = utils.Property = (defaultValue) => {
 
         var valueMap = weakmap();
 
-        function property(newValue) {
+        function Property(newValue) {
             if (newValue !== undefined) {
                 valueMap.set(this, newValue);
                 return this;
             }
-            return valueMap.get(this) || property.defaultValue;
+            return valueMap.get(this) || Property.defaultValue;
         }
 
-        property.defaultValue = defaultValue;
-        return property;
+        Property.defaultValue = defaultValue;
+        return Property;
 
     },
 
@@ -374,13 +372,13 @@ const
 /* -- factories ------------------------------------------------------------- */
 
 const
-    // root factories
+    // Root factories
     //
-    root = dev.root = createFactory({
+    Root = J.Root = Factory({
 
         [$prototype]: Obj.prototype,
 
-        [$constructor]: function DeviserRoot() { },
+        [$constructor]: function JOYFrameworkRoot() { },
 
         applyBehaviour(behaviour) {
             behaviour.call(this);
@@ -402,15 +400,15 @@ const
 
     }),
 
-    // collection           factories
-    // inherits from root   factories
+    // Collection           factories
+    // inherits from Root   factories
     //
-    collection = dev.collection = createFactory({
+    Collection = J.Collection = Factory({
 
-        [$prototype]: root.prototype,
+        [$prototype]: Root.prototype,
 
-        [$constructor]: function DeviserCollection(items) {
-            root.constructor.call(this);
+        [$constructor]: function JOYFrameworkCollection(items) {
+            Root.constructor.call(this);
             if (items) this.add(...items);
         },
 
@@ -523,10 +521,10 @@ const
 
     }),
 
-    // color                factories
-    // inherits from root   factories
+    // Color                factories
+    // inherits from Root   factories
     //
-    color = dev.color = (() => {
+    Color = J.Color = (() => {
 
         function setString(self, type, string) {
             for (var key in colorTypes) colorTypes[key].map.delete(self);
@@ -629,12 +627,12 @@ const
             hslValsMap = weakmap(),
             alphaMap = weakmap();
 
-        return createFactory({
+        return Factory({
 
-            [$prototype]: root.prototype,
+            [$prototype]: Root.prototype,
 
-            [$constructor]: function DeviserColor(color) {
-                root.constructor.call(this);
+            [$constructor]: function JOYFrameworkColor(color) {
+                Root.constructor.call(this);
                 if (color)
                     if (typeof color === 'string') {
                         for (var key in colorTypes)
@@ -644,7 +642,7 @@ const
                             }
                     }
                     else if (color instanceof Array) this.rgbVals(color);
-                    else if (color instanceof DeviserColor)
+                    else if (color instanceof JOYFrameworkColor)
                         this.rgbVals(color.rgbVals());
                         // TODO else throw error
             },
@@ -963,25 +961,25 @@ const
             },
 
             clone() {
-                return color(this);
+                return Color(this);
             }
 
         });
 
     })(),
 
-    // dynamicObject    factories
+    // DynamicObject    factories
     //
     // eslint-disable-next-line no-unused-vars
-    dynamicObject = dev.dynamicObject = (() => {
+    DynamicObject = J.DynamicObject = (() => {
 
         var listenersMap = weakmap();
 
-        return createFactory({
+        return Factory({
 
             [$prototype]: Obj.prototype,
 
-            [$constructor]: function DeviserDynamicObject(listeners) {
+            [$constructor]: function JOYFrameworkDynamicObject(listeners) {
                 if (listeners)
                     for (var listener of listeners) this.addListener(listener);
             },
@@ -989,7 +987,7 @@ const
             addListener(listener, prioritize) {
                 var listeners = listenersMap.get(this);
                 if (!listeners)
-                    listeners = listenersMap.set(this, collection());
+                    listeners = listenersMap.set(this, Collection());
                 listeners[prioritize ? 'append' : 'prepend'](listener);
                 return this;
             },
@@ -1011,27 +1009,27 @@ const
 
     })(),
 
-    // dynamicValue
-    // inherits from root
+    // DynamicValue
+    // inherits from Root
     //
-    dynamicValue = dev.dynamicValue = createFactory({
+    DynamicValue = J.DynamicValue = Factory({
 
-        [$prototype]: root.prototype,
+        [$prototype]: Root.prototype,
 
-        [$constructor]: function DeviserDynamicValue(value) {
-            root.constructor.call(this);
+        [$constructor]: function JOYFrameworkDynamicValue(value) {
+            Root.constructor.call(this);
             if (value !== undefined) this.value(value);
         },
 
-        value: dynamicProperty()
+        value: DynamicProperty()
 
     }),
 
-    // animatedNumber
-    // inherits from dynamicValue
+    // AnimatedNumber
+    // inherits from DynamicValue
     //
     // eslint-disable-next-line no-unused-vars
-    animatedNumber = dev.animatedNumber = (() => {
+    AnimatedNumber = J.AnimatedNumber = (() => {
 
         var animationMap = weakmap(),
             targetMap = weakmap();
@@ -1056,17 +1054,17 @@ const
             this.value(nextValue);
         }
 
-        return createFactory({
+        return Factory({
 
-            [$prototype]: dynamicValue.prototype,
+            [$prototype]: DynamicValue.prototype,
 
-            [$constructor]: function DeviserAnimatedNumber(number) {
-                dynamicValue.constructor.call(this, number || 0);
+            [$constructor]: function JOYFrameworkAnimatedNumber(number) {
+                DynamicValue.constructor.call(this, number || 0);
                 this.target(number || 0);
             },
 
-            delta: property(1),
-            value: dynamicProperty(0),
+            delta: Property(1),
+            value: DynamicProperty(0),
 
             target(newTarget) {
                 var target = targetMap.get(this);
@@ -1074,7 +1072,7 @@ const
                     if (newTarget !== target) {
                         if (!animationMap.get(this)) animationMap.set(
                             this,
-                            animationFrameLoop()
+                            AnimationFrameLoop()
                                 .update(updateListener.bind(this))
                                 .start()
                         );
@@ -1093,28 +1091,28 @@ const
 
     })(),
 
-    // runnable
-    // inherits from root
+    // Runnable
+    // inherits from Root
     //
-    runnable = dev.runnable = (function () {
+    Runnable = J.Runnable = (function () {
 
         var runningMap = weakmap();
 
-        return createFactory({
+        return Factory({
 
-            [$prototype]: root.prototype,
+            [$prototype]: Root.prototype,
 
-            [$constructor]: function DeviserRunnable() {
-                root.constructor.call(this);
+            [$constructor]: function JOYFrameworkRunnable() {
+                Root.constructor.call(this);
             },
 
             // TODO fix start bug
-            start: dynamicMethod(function () {
+            start: DynamicMethod(function () {
                 if (!runningMap.get(this)) runningMap.set(this, true);
                 else return false;
             }),
 
-            stop: dynamicMethod(function () {
+            stop: DynamicMethod(function () {
                 if (runningMap.get(this)) runningMap.set(this, false);
                 else return false;
             }),
@@ -1128,10 +1126,10 @@ const
 
     })(),
 
-    // animationFrameLoop
-    // inherits from runnable
+    // AnimationFrameLoop
+    // inherits from Runnable
     //
-    animationFrameLoop = dev.animationFrameLoop = (() => {
+    AnimationFrameLoop = J.AnimationFrameLoop = (() => {
 
         var lastTimeMap = weakmap();
 
@@ -1144,17 +1142,17 @@ const
             }
         }
 
-        return createFactory({
+        return Factory({
 
-            [$prototype]: runnable.prototype,
+            [$prototype]: Runnable.prototype,
 
-            [$constructor]: function DeviserAnimationFrameLoop() {
-                runnable.constructor.call(this);
+            [$constructor]: function JOYFrameworkAnimationFrameLoop() {
+                Runnable.constructor.call(this);
             },
 
-            start: dynamicMethod(function () {
+            start: DynamicMethod(function () {
                 if (
-                    runnable.prototype.start.executor.call(this) !==
+                    Runnable.prototype.start.executor.call(this) !==
                     false
                 ) {
                     lastTimeMap.set(this, getTime());
@@ -1163,32 +1161,32 @@ const
                 else return false;
             }),
 
-            update: dynamicMethod()
+            update: DynamicMethod()
 
         });
 
     })(),
 
-    // loadingTarget
-    // inherits from runnable
+    // Progress
+    // inherits from Runnable
     //
-    loadingTarget = dev.loadingTarget = (() => {
+    Progress = J.Progress = (() => {
 
         function stop() {
             this.stop();
         }
 
-        return createFactory({
+        return Factory({
 
-            [$prototype]: runnable.prototype,
+            [$prototype]: Runnable.prototype,
 
-            [$constructor]: function DeviserLoadingTarget() {
-                runnable.constructor.call(this);
+            [$constructor]: function JOYFrameworkLoadingTarget() {
+                Runnable.constructor.call(this);
             },
 
-            resolve: dynamicMethod(stop),
-            reject: dynamicMethod(stop),
-            completion: dynamicProperty(0),
+            resolve: DynamicMethod(stop),
+            reject: DynamicMethod(stop),
+            completion: DynamicProperty(0),
 
             complete(listener, remove) {
                 // TODO throw error if there is no listener
@@ -1198,9 +1196,9 @@ const
                 );
             },
 
-            start: dynamicMethod(function () {
+            start: DynamicMethod(function () {
                 if (
-                    runnable.prototype.start.executor.call(this) ===
+                    Runnable.prototype.start.executor.call(this) ===
                     false
                 ) return false;
                 this.completion(0);
@@ -1210,22 +1208,22 @@ const
 
     })(),
 
-    // loadingList
-    // inherits from loadingTarget
+    // LoadingList
+    // inherits from Progress
     //
-    loadingList = dev.loadingList = createFactory({
+    LoadingList = J.LoadingList = Factory({
 
-        [$prototype]: loadingTarget.prototype,
+        [$prototype]: Progress.prototype,
 
-        [$constructor]: function DeviserLoadingList(list) {
-            loadingTarget.call(this);
+        [$constructor]: function JOYFrameworkLoadingList(list) {
+            Progress.call(this);
             if (list) this.list(list);
         },
 
-        start: dynamicMethod(function () {
+        start: DynamicMethod(function () {
 
             if (
-                loadingTarget.prototype.start.executor.call(
+                Progress.prototype.start.executor.call(
                     this
                 ) ===
                 false
@@ -1268,7 +1266,7 @@ const
 
         }),
 
-        list: property(),
+        list: Property(),
 
         [Symbol.iterator]: function* () {
             yield* this.list();
@@ -1276,21 +1274,21 @@ const
 
     }),
 
-    // simultaneousLoading
-    // inherits from loadingList
+    // SimultaneousLoading
+    // inherits from LoadingList
     //
     // eslint-disable-next-line no-unused-vars
-    simultaneousLoading = dev.simultaneousLoading = createFactory({
+    SimultaneousLoading = J.SimultaneousLoading = Factory({
 
-        [$prototype]: loadingList.prototype,
+        [$prototype]: LoadingList.prototype,
 
-        [$constructor]: function DeviserSimultaneousLoading(list) {
-            loadingList.constructor.call(this, list);
+        [$constructor]: function JOYFrameworkSimultaneousLoading(list) {
+            LoadingList.constructor.call(this, list);
         },
 
-        start: dynamicMethod(function () {
+        start: DynamicMethod(function () {
             if (
-                loadingList.prototype.start.executor.call(this) ===
+                LoadingList.prototype.start.executor.call(this) ===
                 false
             ) return false;
             // TODO fix list ambiguity
@@ -1299,21 +1297,21 @@ const
 
     }),
 
-    // queue
-    // inherits from loadingList
+    // Queue
+    // inherits from LoadingList
     //
     // eslint-disable-next-line no-unused-vars
-    queue = dev.queue = createFactory({
+    Queue = J.Queue = Factory({
 
-        [$prototype]: loadingList.prototype,
+        [$prototype]: LoadingList.prototype,
 
-        [$constructor]: function DeviserQueue(list) {
-            loadingList.constructor.call(this, list);
+        [$constructor]: function JOYFrameworkQueue(list) {
+            LoadingList.constructor.call(this, list);
         },
 
-        start: dynamicMethod(function () {
+        start: DynamicMethod(function () {
             if (
-                loadingList.prototype.start.executor.call(this) ===
+                LoadingList.prototype.start.executor.call(this) ===
                 false
             ) return false;
             var list = this.list(),
@@ -1338,21 +1336,21 @@ const
 
     }),
 
-    // animationCurve
-    // inherits from root
+    // AnimationCurve
+    // inherits from Root
     //
     // eslint-disable-next-line no-unused-vars
-    animationCurve = dev.animationCurve = (() => {
+    AnimationCurve = J.AnimationCurve = (() => {
 
         var coordsMap = weakmap(),
             sdMap = weakmap();
 
-        return createFactory({
+        return Factory({
 
-            [$prototype]: root.prototype,
+            [$prototype]: Root.prototype,
 
-            [$constructor]: function DeviserAnimationCurve(coords) {
-                root.constructor.call(this);
+            [$constructor]: function JOYFrameworkAnimationCurve(coords) {
+                Root.constructor.call(this);
                 if (coords) this.coords(coords);
             },
 
@@ -1439,11 +1437,11 @@ const
 
     })(),
 
-    // animation
-    // inherits from loadingTarget
+    // Animation
+    // inherits from Progress
     //
     // eslint-disable-next-line no-unused-vars
-    animation = dev.animation = (() => {
+    Animation = J.Animation = (() => {
 
         // var timeMap = weakmap();
 
@@ -1457,27 +1455,27 @@ const
             if (completion === 1) this.resolve();
         }
 
-        return createFactory({
+        return Factory({
 
-            [$prototype]: loadingTarget.prototype,
+            [$prototype]: Progress.prototype,
 
-            [$constructor]: function DeviserAnimation(time) {
-                loadingTarget.constructor.call(this);
+            [$constructor]: function JOYFrameworkAnimation(time) {
+                Progress.constructor.call(this);
                 if (time) this.time(time);
             },
 
-            time: property(),
-            curve: property(),
-            update: dynamicMethod(),
+            time: Property(),
+            curve: Property(),
+            update: DynamicMethod(),
 
-            start: dynamicMethod(function () {
+            start: DynamicMethod(function () {
                 if (
-                    loadingTarget.prototype.start.executor.call(
+                    Progress.prototype.start.executor.call(
                         this
                     ) ===
                     false
                 ) return false;
-                var animation = animationFrameLoop().update(
+                var animation = AnimationFrameLoop().update(
                     updater.bind(this)
                 );
                 this.stop(function stop() {
@@ -1491,24 +1489,24 @@ const
 
     })(),
 
-    // wait
-    // inherits from loadingTarget
+    // Delay
+    // inherits from Progress
     //
     // eslint-disable-next-line no-unused-vars
-    wait = dev.wait = createFactory({
+    Delay = J.Delay = Factory({
 
-        [$prototype]: loadingTarget.prototype,
+        [$prototype]: Progress.prototype,
 
-        [$constructor]: function DeviserWait(time) {
-            loadingTarget.constructor.call(this);
+        [$constructor]: function JOYFrameworkWait(time) {
+            Progress.constructor.call(this);
             if (time) this.time(time);
         },
 
-        time: property(),
+        time: Property(),
 
-        start: dynamicMethod(function () {
+        start: DynamicMethod(function () {
             if (
-                loadingTarget.prototype.start.executor.call(this) ===
+                Progress.prototype.start.executor.call(this) ===
                 false
             ) return false;
             // var canstop = true;
@@ -1522,17 +1520,17 @@ const
 
     }),
 
-    // element      factories
+    // Elem         factories
     //
     // using:
     // - createEl   utils
     //
-    element = dev.element = (() => {
+    Elem = J.Elem = (() => {
 
         function styleSetter(key, value) {
             // this refers to the style property of the DOM element
             if (this[key] !== undefined) this[key] = (
-                value instanceof color.constructor ? value.rgba() : value
+                value instanceof Color.constructor ? value.rgba() : value
             );
             else {
                 var Key = (
@@ -1555,12 +1553,12 @@ const
             domElementsMap = weakmap(),
             devElementsMap = weakmap(),
             prefixes = ['webkit', 'Moz'],
-            element = createFactory({
+            Elem = Factory({
 
-                [$prototype]: root.prototype,
+                [$prototype]: Root.prototype,
 
-                [$constructor]: function DeviserElement(element) {
-                    root.constructor.call(this);
+                [$constructor]: function JOYFrameworkElement(element) {
+                    Root.constructor.call(this);
                     if (element) {
                         // TODO throw error if the element is not a string
                         var domElement = doc.createElement(element);
@@ -1636,7 +1634,7 @@ const
                             }
                         }
                         style = arg[key];
-                        if (style instanceof dynamicValue.constructor) {
+                        if (style instanceof DynamicValue.constructor) {
                             // add dynamic value
                             if (!listeners)
                                 dynamicStyleListenersMap.set(
@@ -1686,7 +1684,7 @@ const
                             domElement.appendChild(
                                 doc.createTextNode(item)
                             );
-                        else if (item instanceof element.constructor)
+                        else if (item instanceof Elem.constructor)
                             domElement.appendChild(item.element());
                         else if (item[Symbol.iterator])
                             // TODO store Symbol.iterator property value
@@ -1745,7 +1743,7 @@ const
                         newParent.add(this);
                         return this;
                     }
-                    return element.get(this.element().parent);
+                    return Elem.get(this.element().parent);
                 },
 
                 children(newChildren) {
@@ -1753,9 +1751,9 @@ const
                         this.clear().add(newChildren);
                         return this;
                     }
-                    var coll = collection();
+                    var coll = Collection();
                     for (var child of this.element().children)
-                        coll.append(element.get(child));
+                        coll.append(Elem.get(child));
                     return coll;
                 },
 
@@ -1776,10 +1774,9 @@ const
 
                 index(newIndex) {
                     var domElement = this.element(),
-                        parent = element.parent;
+                        parent = Elem.parent;
                     if (newIndex !== undefined) {
-                        if (parent)
-                            element.get(parent).insert(this, newIndex);
+                        if (parent) Elem.get(parent).insert(this, newIndex);
                         return this;
                     }
                     if (parent)
@@ -1791,7 +1788,7 @@ const
                     var parent = this.parent();
                     if (newSiblings) {
                         if (parent) parent.children(
-                            collection(newSiblings)
+                            Collection(newSiblings)
                                 .insert(this, this.index())
                         );
                         return this;
@@ -1818,7 +1815,7 @@ const
 
                                 listener.bind(this) :
 
-                                listener instanceof runnable.constructor ?
+                                listener instanceof Runnable.constructor ?
 
                                     listener.start.bind(listener) :
 
@@ -1947,202 +1944,202 @@ const
 
                 get(selector, onlyOne) {
                     if (onlyOne) return (
-                        element.get(
+                        Elem.get(
                             this.element().querySelector(selector)
                         ) ||
                         null
                     );
-                    var coll = collection();
+                    var coll = Collection();
                     for (
                         var domElement
                         of this.element().querySelectorAll(selector)
-                    ) coll.append(element.get(domElement));
+                    ) coll.append(Elem.get(domElement));
                     return coll;
                 }
 
             });
 
-        element.get = function (domElement) {
+        Elem.get = function (domElement) {
             if (!domElement) return null;
             var devElement = devElementsMap.get(domElement);
             if (devElement) return devElement;
-            devElement = element();
+            devElement = Elem();
             devElementsMap.set(domElement, devElement);
             domElementsMap.set(devElement, domElement);
             return devElement;
         };
 
-        return element;
+        return Elem;
 
     })(),
 
-    // div                      factories
-    // inherits from element    factories
+    // Div                  factories
+    // inherits from Elem   factories
     //
     // using:
     // - createObj
     //
-    div = dev.div = createFactory({
+    Div = J.Div = Factory({
 
-        [$prototype]: element.prototype,
+        [$prototype]: Elem.prototype,
 
-        [$constructor]: function DeviserDivElement(content) {
-            element.constructor.call(this, 'div');
+        [$constructor]: function JOYFrameworkDivElement(content) {
+            Elem.constructor.call(this, 'div');
             if (content !== undefined) this.add(content);
         }
 
     }),
 
-    // tableDiv             factories
-    // inherits from div    factories
+    // TableDiv             factories
+    // inherits from Div    factories
     //
     // using:
     // - createObj
     //
-    tableDiv = dev.tableDiv = createFactory({
+    TableDiv = J.TableDiv = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserTableDivElement(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkTableDivElement(content) {
+            Div.constructor.call(this, content);
             this.css({ display: 'table' });
         }
 
     }),
 
-    // wrappedTableDiv          factories
-    // inherits from tableDiv   factories
+    // WrappedTableDiv          factories
+    // inherits from TableDiv   factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    wrappedTableDiv = dev.wrappedTableDiv = createFactory({
+    WrappedTableDiv = J.WrappedTableDiv = Factory({
 
-        [$prototype]: tableDiv.prototype,
+        [$prototype]: TableDiv.prototype,
 
-        [$constructor]: function DeviserWrappedTableDivElement(content) {
-            tableDiv.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkWrappedTableDivElement(content) {
+            TableDiv.constructor.call(this, content);
             this.css({ width: '100%', height: '100%' });
         }
 
     }),
 
-    // trDiv                factories
-    // inherits from div    factories
+    // TrDiv                factories
+    // inherits from Div    factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    trDiv = dev.trDiv = createFactory({
+    TrDiv = J.TrDiv = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserTableRowDivElement(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkTableRowDivElement(content) {
+            Div.constructor.call(this, content);
             this.css({ display: 'table-row' });
         }
 
     }),
 
-    // tdDiv                factories
-    // inherits from div    factories
+    // TdDiv                factories
+    // inherits from Div    factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    tdDiv = dev.tdDiv = createFactory({
+    TdDiv = J.TdDiv = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserTableCellDivElement(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkTableCellDivElement(content) {
+            Div.constructor.call(this, content);
             this.css({ display: 'table-cell' });
         }
 
     }),
 
-    // center               factories
-    // inherits from div    factories
+    // Center               factories
+    // inherits from Div    factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    center = dev.center = createFactory({
+    Center = J.Center = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserCenterElement(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkCenterElement(content) {
+            Div.constructor.call(this, content);
             this.css({ textAlign: 'center' });
         }
 
     }),
 
-    // left                 factories
-    // inherits from div    factories
+    // Left                 factories
+    // inherits from Div    factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    left = dev.left = createFactory({
+    Left = J.Left = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserLeftElement(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkLeftElement(content) {
+            Div.constructor.call(this, content);
             this.css({ textAlign: 'left' });
         }
 
     }),
 
-    // right                factories
-    // inherits from div    factories
+    // Right                factories
+    // inherits from Div    factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    right = dev.right = createFactory({
+    Right = J.Right = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserRightElement(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkRightElement(content) {
+            Div.constructor.call(this, content);
             this.css({ textAlign: 'right' });
         }
 
     }),
 
-    // inline               factories
-    // inherits from div    factories
+    // Inline               factories
+    // inherits from Div    factories
     //
     // eslint-disable-next-line no-unused-vars
-    inline = dev.inline = createFactory({
+    Inline = J.Inline = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserInlineBlockDiv(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkInlineBlockDiv(content) {
+            Div.constructor.call(this, content);
             this.css({ display: 'inline-block' });
         }
 
     }),
 
-    // yCentered            factories
-    // inherits from div    factories
+    // YCentered            factories
+    // inherits from Div    factories
     //
     // eslint-disable-next-line no-unused-vars
-    yCentered = dev.yCentered = createFactory({
+    YCentered = J.YCentered = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserVerticallyCenteredDiv(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkVerticallyCenteredDiv(content) {
+            Div.constructor.call(this, content);
             this.css({
                 position: 'relative',
                 top: '50%',
@@ -2152,16 +2149,16 @@ const
 
     }),
 
-    // xCentered            factories
-    // inherits from div    factories
+    // XCentered            factories
+    // inherits from Div    factories
     //
     // eslint-disable-next-line no-unused-vars
-    xCentered = dev.xCentered = createFactory({
+    XCentered = J.XCentered = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserHorizontallyCenteredDiv(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkHorizontallyCenteredDiv(content) {
+            Div.constructor.call(this, content);
             this.css({
                 position: 'relative',
                 left: '50%',
@@ -2171,16 +2168,16 @@ const
 
     }),
 
-    // cnetered             factories
-    // inherits from div    factories
+    // Centered             factories
+    // inherits from Div    factories
     //
     // eslint-disable-next-line no-unused-vars
-    centered = dev.centered = createFactory({
+    Centered = J.Centered = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserCenteredDiv(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkCenteredDiv(content) {
+            Div.constructor.call(this, content);
             this.css({
                 position: 'relative',
                 top: '50%',
@@ -2191,19 +2188,19 @@ const
 
     }),
 
-    // wrapped                  factories
-    // inherits from div        factories
+    // Wrapped              factories
+    // inherits from Div    factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    wrapped = dev.wrapped = createFactory({
+    Wrapped = J.Wrapped = Factory({
 
-        [$prototype]: div.prototype,
+        [$prototype]: Div.prototype,
 
-        [$constructor]: function DeviserWrappedElement(content) {
-            div.constructor.call(this, content);
+        [$constructor]: function JOYFrameworkWrappedElement(content) {
+            Div.constructor.call(this, content);
             this.css({
                 width: '100%',
                 height: '100%'
@@ -2212,35 +2209,35 @@ const
 
     }),
 
-    // canvas                   factories
-    // inherits from element    factories
+    // Canvas               factories
+    // inherits from Elem   factories
     //
     // using:
     // - createObj
     //
-    canvas = dev.canvas = createFactory({
+    Canvas = J.Canvas = Factory({
 
-        [$prototype]: element.prototype,
+        [$prototype]: Elem.prototype,
 
-        [$constructor]: function DeviserCanvasElement() {
-            element.constructor.call(this, 'canvas');
+        [$constructor]: function JOYFrameworkCanvasElement() {
+            Elem.constructor.call(this, 'canvas');
         }
 
     }),
 
-    // canvas2D             factories
+    // Canvas2D             factories
     // inherits from canvas factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    canvas2D = dev.canvas2D = createFactory({
+    Canvas2D = J.Canvas2D = Factory({
 
-        [$prototype]: canvas.prototype,
+        [$prototype]: Canvas.prototype,
 
-        [$constructor]: function DeviserCanvas2DElement() {
-            canvas.constructor.call(this);
+        [$constructor]: function JOYFrameworkCanvas2DElement() {
+            Canvas.constructor.call(this);
         },
 
         context() {
@@ -2249,72 +2246,72 @@ const
 
     }),
 
-    // span                     factories
-    // inherits from element    factories
+    // Span                 factories
+    // inherits from Elem   factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    span = dev.span = createFactory({
+    Span = J.Span = Factory({
 
-        [$prototype]: element.prototype,
+        [$prototype]: Elem.prototype,
 
-        [$constructor]: function DeviserSpanElement(content) {
-            element.constructor.call(this, 'span');
+        [$constructor]: function JOYFrameworkSpanElement(content) {
+            Elem.constructor.call(this, 'span');
             if (content !== undefined) this.add(content);
         }
 
     }),
 
-    // b                        factories
-    // inherits from element    factories
+    // B                     factories
+    // inherits from Elem    factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    b = dev.b = createFactory({
+    B = J.B = Factory({
 
-        [$prototype]: element.prototype,
+        [$prototype]: Elem.prototype,
 
-        [$constructor]: function DeviserBoldTextElement(content) {
-            element.constructor.call(this, 'b');
+        [$constructor]: function JOYFrameworkBoldTextElement(content) {
+            Elem.constructor.call(this, 'b');
             if (content !== undefined) this.add(content);
         }
 
     }),
 
-    // i                        factories
-    // inherits from element    factories
+    // I                    factories
+    // inherits from Elem   factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    i = dev.i = createFactory({
+    I = J.I = Factory({
 
-        [$prototype]: element.prototype,
+        [$prototype]: Elem.prototype,
 
-        [$constructor]: function DeviserItalicTextElement(content) {
-            element.constructor.call(this, 'i');
+        [$constructor]: function JOYFrameworkItalicTextElement(content) {
+            Elem.constructor.call(this, 'i');
             if (content !== undefined) this.add(content);
         }
 
     }),
 
-    // a                        factories
-    // inherits from element    factories
+    // A                    factories
+    // inherits from Elem   factories
     //
     // using:
     // - createObj
     //
-    a = dev.a = createFactory({
+    A = J.A = Factory({
 
-        [$prototype]: element.prototype,
+        [$prototype]: Elem.prototype,
 
-        [$constructor]: function DeviserAnchorElement(content) {
-            element.constructor.call(this, 'a');
+        [$constructor]: function JOYFrameworkAnchorElement(content) {
+            Elem.constructor.call(this, 'a');
             if (content !== undefined) this.add(content);
         },
 
@@ -2328,18 +2325,18 @@ const
 
     }),
 
-    // input                    factories
+    // Input                    factories
     // inherits from element    factories
     //
     // using:
     // - createObj
     //
-    input = dev.input = createFactory({
+    Input = J.Input = Factory({
 
-        [$prototype]: element.prototype,
+        [$prototype]: Elem.prototype,
 
-        [$constructor]: function DeviserInputElement(type) {
-            element.constructor.call(this, 'input');
+        [$constructor]: function JOYFrameworkInputElement(type) {
+            Elem.constructor.call(this, 'input');
             if (type !== undefined) this.type(type);
         },
 
@@ -2361,37 +2358,37 @@ const
 
     }),
 
-    // textInput            factories
-    // inherits from input  factories
+    // TextInput            factories
+    // inherits from Input  factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    textInput = dev.textInput = createFactory({
+    TextInput = J.TextInput = Factory({
 
-        [$prototype]: input.prototype,
+        [$prototype]: Input.prototype,
 
-        [$constructor]: function DeviserTextInputElement(value) {
-            input.constructor.call(this, 'text');
+        [$constructor]: function JOYFrameworkTextInputElement(value) {
+            Input.constructor.call(this, 'text');
             if (value !== undefined) this.value(value);
         }
 
     }),
 
-    // link             factories
-    // inherits from a  factories
+    // Link             factories
+    // inherits from A  factories
     //
     // using:
     // - createObj
     //
     // eslint-disable-next-line no-unused-vars
-    link = dev.link = createFactory({
+    Link = J.Link = Factory({
 
-        [$prototype]: a.prototype,
+        [$prototype]: A.prototype,
 
-        [$constructor]: function DeviserLinkElement(url) {
-            a.constructor.call(this, url);
+        [$constructor]: function JOYFrameworkLinkElement(url) {
+            A.constructor.call(this, url);
             if (url !== undefined) this.href(url);
         }
 
